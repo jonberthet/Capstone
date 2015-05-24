@@ -1,6 +1,25 @@
 #This is how we convert the current txt files into something readable in:
 #R
+#Get into directory with files
+setwd("~/JBcap")
+
+#How to read each file. Depending on the file, you need to set different parameters or functions. Caution ╚(•⌂•)╝
+patfin    <- read.table("dr_9389_pat_fin.txt", sep = "|", header = TRUE)
+#Column names don't seem to match the data it's describing. 'enc_eio'? 'enc_fin_clas', 'discharge_dispo'?
+patEncFin <- read.delim("dr_9389_pat_enc_fin.txt", sep = "|", header=TRUE, fileEncoding = "UCS-2LE")
+
+#Not sure if the code below works. Please update and check.
+medsOut   <- read.table("dr_9389_meds_out.txt", sep = "|", header = TRUE, fill = TRUE)
+medsIn    <- read.table("dr_9389_meds_in.txt", sep = "|", header = TRUE, fill = TRUE)
+labs      <- read.delim("dr_9389_labs.txt", sep = "|", header = TRUE)
+icd9Proc  <- read.table("dr_9389_icd9_proc.txt", sep = "|", header = TRUE)
+icd9ProbList<- read.table("dr_9389_icd9_prob_list.txt", sep = "|", header = TRUE)
+icd9Dx<- read.table("dr_9389_icd9_dx.txt", sep = "|", header = TRUE)
+flow <- read.delim("dr_9389_flow.txt", sep = "|", header = TRUE)
+cptProc <- read.table("dr_9389_cpt_proc.txt", sep = "|", header = TRUE)
+chargesPOA <- read.table("dr_9389_charges_POA.txt", sep = "|", header = TRUE)
+chargesAdmitPriority <- read.table("dr_9389_charges_admit_priority.txt", sep = "|", header = TRUE)
+charges <- read.table("dr_9389_charges.txt", sep = "|", header = TRUE)
+labs <- read.delim("dr_9389_labs.txt", sep = "|", header = TRUE)
 
 
-
-#SaS
