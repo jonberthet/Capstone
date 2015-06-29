@@ -3,7 +3,7 @@
 #Get into directory with files
 setwd("~/JBcap")
 
-#How to read each file. Depending on the file, you need to set different parameters or functions. Caution ╚(•⌂•)╝
+#How to read each file. Depending on the file, you need to set different parameters or functions. 
 patfin    <- read.table("dr_9389_pat_fin.txt", sep = "|", header = TRUE)
 #Column names don't seem to match the data it's describing. 'enc_eio'? 'enc_fin_clas', 'discharge_dispo'?
 patEncFin <- read.delim("dr_9389_pat_enc_fin.txt", sep = "|", header=TRUE, fileEncoding = "UCS-2LE")
