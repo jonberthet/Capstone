@@ -1,4 +1,4 @@
-#This is how we convert the current txt files into something readable in:
+#This is how we convert the current txt files into something readable in. Test:
 #R
 #Get into directory with files
 setwd("~/JBcap")
