@@ -22,4 +22,56 @@ chargesAdmitPriority <- read.table("dr_9389_charges_admit_priority.txt", sep = "
 charges <- read.table("dr_9389_charges.txt", sep = "|", header = TRUE)
 labs <- read.delim("dr_9389_labs.txt", sep = "|", header = TRUE)
 
+# Monday July 6, 2015
+# Hi everyone, this is Grace. 
+#The following code works to produce tables. 
+# If there were warnings, they are indicated.
 
+patfin <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_pat_fin.txt", sep="|", header=T)
+patEncFin <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_pat_enc_fin.txt", sep = "|", header=TRUE, fileEncoding = "UCS-2LE")
+labs <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_labs.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
+#^would not run on without UCS-2LE fileEncoding; took a long time to run, had the following warning: 
+#In scan(file, what, nmax, sep, dec, quote, skip, nlines, na.strings,  : EOF within quoted string
+icd9Proc  <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_icd9_proc.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
+icd9ProbList<- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_icd9_prob_list.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
+icd9Dx<- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_icd9_dx.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
+# warnings:
+# 1: In scan(file, what, nmax, sep, dec, quote, skip, nlines, na.strings,  :
+# EOF within quoted string
+#2: In scan(file, what, nmax, sep, dec, quote, skip, nlines, na.strings,  :
+#             number of items read is not a multiple of the number of columns
+flow <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_flow.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
+cptProc <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_cpt_proc.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
+medsOut   <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_meds_out.txt", sep = "|", header = TRUE, fill = TRUE, fileEncoding = "UCS-2LE")
+#^ warning: 
+#In scan(file, what, nmax, sep, dec, quote, skip, nlines, na.strings,  :
+#EOF within quoted string
+charges <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges.txt", sep = "|", header = TRUE)
+chargesPOA <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges_POA.txt", sep = "|", header = TRUE)
+chargesAdmitPriority <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges_admit_priority.txt", sep = "|", header = TRUE)
+#havent' run the following yet
+medsIn    <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_meds_in.txt", sep = "|", header = TRUE, fill = TRUE)
+
+# to save these varibles/tables in an RData file:
+save(list=ls(all=TRUE),file="/home/dgshrader/capstone/capstone_Rtables.RData")
+# ^took ~25 seconds to run (on campus at Library)
+
+#run the following to load these variables when opening an R session
+load("/home/dgshrader/capstone/data_frames.RData")
+
+# I also created a table called DataExploration.  But also see Katie's Rattle exploration: that has more information.
+chargesExploration <- data.frame(rows = nrow(charges),variable = names(charges),class = apply(charges,2,class), typeof = apply(charges,2,typeof), max = apply(charges,2,max), min = apply(charges,2,min), mean = apply(charges,2,mean), median = apply(charges,2,median), level_num =  apply(charges,2,level_num))
+chargesAdmitPriorityExploration <- data.frame(rows = nrow(chargesAdmitPriority),variable = names(chargesAdmitPriority),class = apply(chargesAdmitPriority,2,class), typeof = apply(chargesAdmitPriority,2,typeof), max = apply(chargesAdmitPriority,2,max), min = apply(chargesAdmitPriority,2,min), mean = apply(chargesAdmitPriority,2,mean), median = apply(chargesAdmitPriority,2,median), level_num =  apply(chargesAdmitPriority,2,level_num))
+chargesPOAExploration <- data.frame(rows = nrow(chargesPOA),variable = names(chargesPOA),class = apply(chargesPOA,2,class), typeof = apply(chargesPOA,2,typeof), max = apply(chargesPOA,2,max), min = apply(chargesPOA,2,min), mean = apply(chargesPOA,2,mean), median = apply(chargesPOA,2,median), level_num =  apply(chargesPOA,2,level_num))
+cptProcExploration <- data.frame(rows = nrow(cptProc),variable = names(cptProc),class = apply(cptProc,2,class), typeof = apply(cptProc,2,typeof), max = apply(cptProc,2,max), min = apply(cptProc,2,min), mean = apply(cptProc,2,mean), median = apply(cptProc,2,median), level_num =  apply(cptProc,2,level_num))
+flowExploration <- data.frame(rows = nrow(flow),variable = names(flow),class = apply(flow,2,class), typeof = apply(flow,2,typeof), max = apply(flow,2,max), min = apply(flow,2,min), mean = apply(flow,2,mean), median = apply(flow,2,median), level_num =  apply(flow,2,level_num))
+icd9DxExploration <- data.frame(rows = nrow(icd9Dx),variable = names(icd9Dx),class = apply(icd9Dx,2,class), typeof = apply(icd9Dx,2,typeof), max = apply(icd9Dx,2,max), min = apply(icd9Dx,2,min), mean = apply(icd9Dx,2,mean), median = apply(icd9Dx,2,median), level_num =  apply(icd9Dx,2,level_num))
+icd9ProbListExploration <- data.frame(rows = nrow(icd9ProbList),variable = names(icd9ProbList),class = apply(icd9ProbList,2,class), typeof = apply(icd9ProbList,2,typeof), max = apply(icd9ProbList,2,max), min = apply(icd9ProbList,2,min), mean = apply(icd9ProbList,2,mean), median = apply(icd9ProbList,2,median), level_num =  apply(icd9ProbList,2,level_num))
+icd9ProcExploration <- data.frame(rows = nrow(icd9Proc),variable = names(icd9Proc),class = apply(icd9Proc,2,class), typeof = apply(icd9Proc,2,typeof), max = apply(icd9Proc,2,max), min = apply(icd9Proc,2,min), mean = apply(icd9Proc,2,mean), median = apply(icd9Proc,2,median), level_num =  apply(icd9Proc,2,level_num))
+labsExploration <- data.frame(rows = nrow(labs),variable = names(labs),class = apply(labs,2,class), typeof = apply(labs,2,typeof), max = apply(labs,2,max), min = apply(labs,2,min), mean = apply(labs,2,mean), median = apply(labs,2,median), level_num =  apply(labs,2,level_num))
+medsOutExploration <- data.frame(rows = nrow(medsOut),variable = names(medsOut),class = apply(medsOut,2,class), typeof = apply(medsOut,2,typeof), max = apply(medsOut,2,max), min = apply(medsOut,2,min), mean = apply(medsOut,2,mean), median = apply(medsOut,2,median), level_num =  apply(medsOut,2,level_num))
+patEncFinExploration <- data.frame(rows = nrow(patEncFin),variable = names(patEncFin),class = apply(patEncFin,2,class), typeof = apply(patEncFin,2,typeof), max = apply(patEncFin,2,max), min = apply(patEncFin,2,min), mean = apply(patEncFin,2,mean), median = apply(patEncFin,2,median), level_num =  apply(patEncFin,2,level_num))
+patfinExploration <- data.frame(rows = nrow(patfin),variable = names(patfin),class = apply(patfin,2,class), typeof = apply(patfin,2,typeof), max = apply(patfin,2,max), min = apply(patfin,2,min), mean = apply(patfin,2,mean), median = apply(patfin,2,median), level_num =  apply(patfin,2,level_num))
+DataExploration <- rbind(patfinExploration, patEncFinExploration, medsOutExploration, labsExploration, icd9ProcExploration, icd9ProbListExploration, icd9DxExploration, flowExploration, cptProcExploration, chargesPOAExploration, chargesAdmitPriorityExploration, chargesExploration)
+write.csv(DataExploration, file="/home/dgshrader/capstone/DataExplorationCSV.csv")
+# this table is saved in our Capstone Implementation folder on Dropbox
