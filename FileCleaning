@@ -49,6 +49,8 @@ medsOut   <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_
 charges <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges.txt", sep = "|", header = TRUE)
 chargesPOA <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges_POA.txt", sep = "|", header = TRUE)
 chargesAdmitPriority <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges_admit_priority.txt", sep = "|", header = TRUE)
+GrahamOut <- read.csv("/project/msca/data/uchicagomed/Capstone_\ New\ Data/Graham_out_ALL_deID.csv", sep="|",header=T, fill=T)
+
 #havent' run the following yet
 medsIn    <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_meds_in.txt", sep = "|", header = TRUE, fill = TRUE)
 
