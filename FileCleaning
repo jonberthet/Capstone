@@ -59,7 +59,7 @@ save(list=ls(all=TRUE),file="/home/dgshrader/capstone/capstone_Rtables.RData")
 # ^took ~25 seconds to run (on campus at Library)
 
 #run the following to load these variables when opening an R session
-load("/home/dgshrader/capstone/data_frames.RData")
+load("/home/dgshrader/capstone/capstone_Rtables.RData")
 
 # I also created a table called DataExploration.  But also see Katie's Rattle exploration: that has more information.
 chargesExploration <- data.frame(rows = nrow(charges),variable = names(charges),class = apply(charges,2,class), typeof = apply(charges,2,typeof), max = apply(charges,2,max), min = apply(charges,2,min), mean = apply(charges,2,mean), median = apply(charges,2,median), level_num =  apply(charges,2,level_num))
