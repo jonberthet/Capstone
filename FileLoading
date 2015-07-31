@@ -1,0 +1,34 @@
+# this script loads all tables and stores them as RData files in capstone3. medsIn is stored separately.
+
+# load old tables (except medsIn)
+patfin1 <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_pat_fin.txt", sep="|", header=T)
+patEncFin1 <- read.delim("/project/msca/data/uchicagomed/Capstone/dr_9389_pat_enc_fin2.txt", sep = "|", header=TRUE, fileEncoding = "UCS-2LE")
+charges <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges.txt", sep = "|", header = TRUE)
+chargesPOA <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges_POA.txt", sep = "|", header = TRUE)
+chargesAdmitPriority <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges_admit_priority.txt", sep = "|", header = TRUE)
+cptProc1 <- read.delim("/project/msca/data/uchicagomed/Capstone/dr_9389_cpt_proc.txt",sep="|",quote="",header=T)
+icd9Dx1 <- read.delim("/project/msca/data/uchicagomed/Capstone/dr_9389_icd9_dx.txt",sep="|",quote="",header=T)
+icd9Proc1 <- read.delim("/project/msca/data/uchicagomed/Capstone/dr_9389_icd9_proc.txt",sep="|",quote="",header=T)
+icd9ProbList1 <- read.delim("/project/msca/data/uchicagomed/Capstone/dr_9389_labs.txt",sep="|",quote="",header=T)
+flow1 <- read.delim("/project/msca/data/uchicagomed/Capstone/dr_9389_flow.txt",sep="|",quote="",header=T)
+labs1 <- read.delim("/project/msca/data/uchicagomed/Capstone/dr_9389_labs.txt",sep="|",quote="",header=T)
+medsOut1 <- read.delim("/project/msca/data/uchicagomed/Capstone/dr_9389_meds_out.txt",sep="|",quote="",header=T)
+
+# load new tables
+patfin2 <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_pat_fin.txt", sep="|", header=T)
+patEncFin2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_pat_enc_fin.txt", sep = "|", header=TRUE, fileEncoding = "UCS-2LE")
+GrahamOut <- read.csv("/project/msca/data/uchicagomed/Capstone_\ New\ Data/Graham_out_ALL_deID.csv", sep="|",header=T, fill=T)
+cptProc2 <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_cpt_proc.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
+icd9Dx2 <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_icd9_dx.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
+icd9Proc2  <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_icd9_proc.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
+icd9ProbList2 <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_icd9_prob_list.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
+flow2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_flow.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
+labs2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_labs.txt",sep="|",quote="",header=T,fileEncoding="UTF-16LE") fileEncoding = "UCS-2LE")
+medsOut2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_meds_out.txt",sep="|",quote="",header=T,fileEncoding="UCS-2LE")
+
+save(list=ls(all=TRUE),file="/project/msca/capstone3/all_tables.RData")
+
+#medsIn is really big and will be loaded and stored separately
+medsIn <- read.delim("/project/msca/data/uchicagomed/Capstone/dr_9389_meds_in.txt",sep="|",quote="",header=T)
+save(medsIn,file="/project/msca/capstone3/medsIn.RData")
+rm(medsIn)
