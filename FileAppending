@@ -132,3 +132,16 @@ rm(charges)
 rm(charges)
 
 save(list=ls(all=TRUE),file="/project/msca/capstone3/all_tables_appended.RData")
+
+
+#write tables as text files to capstone3 folder
+write.table(charges_all,file="/project/msca/capstone3/charges_all.txt",sep="|",quote=F)
+# the following format can be used to read these files
+# charges_all <- read.delim("/project/msca/capstone3/charges_all.txt",sep="|",header=T)
+write.table(flow,file="/project/msca/capstone3/flow.txt",sep="|",quote=F)
+write.table(icd9Dx,file="/project/msca/capstone3/icd9Dx.txt",sep="|",quote=F)
+write.table(icd9Proc,file="/project/msca/capstone3/icd9Proc.txt",sep="|",quote=F)
+write.table(labs,file="/project/msca/capstone3/labs.txt",sep="|",quote=F)
+write.table(medsOut,file="/project/msca/capstone3/medsOut.txt",sep="|",quote=F)
+write.table(patEncFin,file="/project/msca/capstone3/patEncFin.txt",sep="|",quote=F)
+write.table(patfin,file="/project/msca/capstone3/patfin.txt",sep="|",quote=F)
