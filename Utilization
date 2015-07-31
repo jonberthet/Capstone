@@ -1,0 +1,71 @@
+load("/project/msca/capstone3/all_tables_appended.RData")
+
+# merge patEncFin & charges_all
+# we want the length to be the length of charges_all
+# we want everything in charges, plus whatever overlaps of patEncFin
+# so that would be a left join (where A = charges and B = patEncFin)
+# in R, a left join is specified by the argument all.x=TRUE in the merge function
+enc_charges <- merge(charges_all,patEncFin,by.x=c("patient_id","encounter_id"),by.y=c("patient_id","encounter_id"), byall.x=TRUE)
+nrow(patEncFin)
+nrow(charges_all) #393,925
+nrow(enc_charges) #393,892
+
+#number of hospitalizations per patient, plus cost
+library(plyr)
+
+enc_charges$inpatient <- 0
+enc_charges$inpatient[which(enc_charges$enc_eio=="E, I,")] <- 1
+sum(enc_charges$inpatient) # 3295
+enc_charges$inpatient[which(enc_charges$enc_eio=="I,")] <- 1
+sum(enc_charges$inpatient) #15767
+enc_charges$inpatient[which(enc_charges$enc_eio=="I, O,")] <- 1
+sum(enc_charges$inpatient) #21384
+
+class(enc_charges$Charges) #charges column is a character. Let's change that.
+charges.na <- as.numeric(enc_charges$Charges)
+
+sum(is.na(charges.na)) # found 8 NAs
+enc_charges$Charges[which(is.na(charges.na))] #not trivial errors
+enc_charges$Charges <- as.numeric(enc_charges$Charges)
+sum(is.na(enc_charges$Charges)) 
+enc_charges <- enc_charges[-which(is.na(charges.na)),]
+sum(is.na(enc_charges$Charges)) # no more NAs
+
+patient_util <- ddply(enc_charges,"patient_id",summarise,hospitalizations=sum(inpatient),total_charges=sum(Charges))
+
+#plot a sample
+nrow(patient_util)
+set.seed(12375)
+samp <- sample(1:nrow(patient_util),floor(0.01*nrow(patient_util)))
+hist(patient_util$hospitalizations,ylab="number of patients",xlab="number of hospitalizations",main="Histogram of Patient Hospitalizations Over 2-year Period",labels=T)
+plot(patient_util$hospitalizations[samp],patient_util$total_charges[samp])
+table(patient_util$hospitalizations)
+# summarize by hospitalization number
+sum_charges_by_utilization <- ddply(patient_util,"hospitalizations",summarise,sum_charges=sum(total_charges))
+avg_charges_by_utilization <- ddply(patient_util,"hospitalizations",summarise,avg_charges=mean(total_charges))
+plot(sum_charges_by_utilization)
+plot(avg_charges_by_utilization)
+plot(avg_charges_by_utilization, ylab = "Charges", xlab="hospitalizations",main="Average charges per patient with a given number of hospitalizations")
+# errors
+# have histogram-thing that shows number of patients
+# taking into account cost per month alive
+
+# we want everything in patient_util, plus whatever overlaps of patfin
+# so that would be a left join (where A = patient_util and B = patfin)
+# in R, a left join is specified by the argument all.x=TRUE in the merge function
+patient_util_alive <- merge(patient_util,patfin[,c(1,6)],by.x="patient_id",by.y="patient_id", byall.x=TRUE)
+patient_util_alive$dod_off <- as.character(patient_util_alive$dod_off)
+patient_util_alive$dod_off <- as.POSIXct(patient_util_alive$dod_off, format="%Y-%m-%d %H:%M:%S")
+class(patient_util_alive$dod_off)
+head(patient_util_alive$dod_off)
+length(which(!is.na(patient_util_alive$dod_off))) #1067 patients died
+nrow(patient_util_alive) #56803 patients total, ~2% of patients died
+
+#explore dates
+names(patEncFin)
+
+patEncFin$adm_date_offset <- as.character(patEncFin$adm_date_offset)
+head(patEncFin$adm_date_offset)
+patEncFin$adm_date_offset <- as.POSIXct(patEncFin$adm_date_offset, format="%Y-%m-%d %H:%M:%S")
+
+head(levels(patEncFin$disch_date_offset))
