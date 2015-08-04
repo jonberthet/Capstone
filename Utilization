@@ -69,3 +69,16 @@ head(patEncFin$adm_date_offset)
 patEncFin$adm_date_offset <- as.POSIXct(patEncFin$adm_date_offset, format="%Y-%m-%d %H:%M:%S")
 
 head(levels(patEncFin$disch_date_offset))
+
+# August 4, 2015 - cost per month alive
+head(patient_util_alive$dod_off)
+max(patEncFin$adm_date_offset)
+
+# create a "days alive" column
+patient_util_alive$days_alive <- 0
+# days alive for patients who didn't die = 730
+patient_util_alive$first_day <- as.POSIXct("2012-12-31", format="%Y-%m-%d")
+patient_util_alive$days_alive <- difftime(patient_util_alive$dod_off,patient_util_alive$first_day, units="days")
+patient_util_alive$days_alive <- as.numeric(patient_util_alive$days_alive,units="days")
+patient_util_alive$days_alive[which(is.na(patient_util_alive$days_alive))]<- 730
+patient_util_alive$charge_per_month_alive <- patient_util_alive$total_charges/(patient_util_alive$days_alive/24)
