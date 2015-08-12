@@ -1,0 +1,15 @@
+
+#Make HCC Model Table
+hccmod <- merge(patfin1, patEncFin1, by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+hccmod2 <- merge(hccmod, patEncFin1, by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+
+#Combine icd9 by patient
+hccmod3 <- merge(hccmod2, icd9Proc1, by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+
+#Dummy Code 'Medicaid - Major' and 'Medicare'
+hccdums <- model.matrix( ~ enc_fin_class.y - 1, data = hccmod3)
+hccmod4 <- cbind(hccmod3, hccdums)
+
+hccmod_final <- hccmod4[,c(1,2,8,11,90)]
+
+
