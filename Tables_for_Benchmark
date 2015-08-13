@@ -1,0 +1,46 @@
+#Tables_for_Benchmark
+load("/project/msca/capstone3/all_tables_appended.RData")
+#DIAG file
+#merge
+#join
+patient_util <- ddply(enc_charges,"patient_id",summarise,hospitalizations=sum(inpatient),total_charges=sum(Charges))
+#Join charges_all with ICD9DX
+install.packages("sqldf")
+library(sqldf)
+
+join_string7<-"select charges_all.*, icd9Dx.icd9_dx from charges_all left join icd9Dx on charges_all.patient_id=icd9Dx.patient_id and charges_all.encounter_id=icd9Dx.encounter_id"
+patient_id_join_ICD9DX <- sqldf(join_string7,stringsAsFactors=FALSE)
+names(patient_id_join_ICD9DX)
+dim(patient_id_join_ICD9DX)
+DIAG <-patient_id_join_ICD9DX[,c(1,7)]
+head(DIAG)
+library(stringr)
+DIAG$icd9_dx <- str_replace_all(DIAG$icd9_dx,"[[:punct:]]","")
+head(DIAG)
+names(DIAG) <- c("HICNO","DIAG")
+head(DIAG,3)
+write.table(DIAG,file="/project/msca/capstone3/DIAG.txt",sep="|",quote=F)
+
+names(patfin)
+PERSON <- patfin[,1:2]
+PERSON$SEX <- 0
+head(PERSON)
+PERSON$SEX[which(PERSON$sex=="M")] <- 1
+head(PERSON)
+PERSON$sex <- NULL
+head(PERSON)
+names(PERSON)[1] <- "HICNO"
+PERSON$OREC <- 0
+PERSON$NEMCAID <- 0
+PERSON$MCAID <- 0
+PERSON$DOB <- as.POSIXct("1960-12-31", format="%Y-%m-%d")
+head(PERSON)
+PERSON$SEX[which(PERSON$SEX==0)]<-2
+rownames(PERSON) <-NULL
+rownames(DIAG) <- NULL
+write.csv(PERSON,file="/project/msca/capstone3/PERSON.csv")
+write.csv(DIAG,file="/project/msca/capstone3/DIAG.csv")
+head(patfin[,1:3])
+head(DIAG)
+
+head(PERSON)
