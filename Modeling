@@ -1,12 +1,11 @@
 # example train-test split
-
+load("/project/msca/capstone3/all_tables_appended.RData")
 set.seed(123)
 train <- sample(1:nrow(patfin),floor(0.7*nrow(patfin)))
 length(train)
 # there are __ observations in our training set
 nrow(patfin) - length(train)
 # there are __ observations in our validation set
-
 
 #Regression
 
