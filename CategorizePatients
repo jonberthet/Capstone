@@ -1,0 +1,25 @@
+#Create HCCs
+load("/project/msca/capstone3/all_tables_appended.RData")
+
+# read in the HCC mapping document
+map <- read.csv("/project/msca/capstone3/2014_icd_mapping.csv",header=T)
+head(map)
+names(map)
+map <- map[,c(1,3,4,5,6)]
+head(map)
+names(map) <- c("DIAG","2013.HCC","PACE/ESRD.HCC","2014.HCC","Rx.HCC")
+head(map)
+#patientHCC <- merge(DIAG,map,by.x="DIAG",by.y="DIAG",byall.x=T) # not right
+patientHCC <- merge(DIAG,map,by.x="DIAG",by.y="DIAG",all.x=T) # not right
+patientHCC <- merge(DIAG,map) # close but no cigar (not all patient diagnoses)
+patientHCC <- merge(DIAG,map,all.x=T, sort=F) 
+nrow(patientHCC)
+head(patientHCC)
+head(patientHCC)
+nrow(patientHCC)
+?merge
+head(patientHCC)
+nrow(DIAG)
+nrow(map)
+nrow(patientHCC)
+head(patientHCC)
