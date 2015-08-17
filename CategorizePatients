@@ -1,6 +1,4 @@
-#Assign patients their HCCs
-
-# read in the HCC mapping document
+# read in the HCC mapping document provided on CMS website
 map <- read.csv("/project/msca/capstone3/2014_icd_mapping.csv",header=T)
 head(map)
 names(map)
@@ -11,6 +9,42 @@ names(map) <- c("DIAG","2013.HCC","PACE/ESRD.HCC","2014.HCC","Rx.HCC")
 library(sqldf)
 #patientHCC<-"select charges_all.*, icd9Dx.icd9_dx from charges_all left join icd9Dx on charges_all.patient_id=icd9Dx.patient_id and charges_all.encounter_id=icd9Dx.encounter_id"
 patientHCC<-"select DIAG.*, map.* from DIAG left join map on DIAG.DIAG=map.DIAG"
-patientHCC<- sqldf(patientHCC,stringsAsFactors=FALSE) #this works!
+patientHCC<- sqldf(patientHCC,stringsAsFactors=FALSE) #this works
 nrow(patientHCC) #this is the correct number of rows; should be equal in length to nrow(DIAG), and it is
 head(patientHCC) #this works
+#lots of NAs. I'll try the map supplied by the software instead.
+
+
+# attempt with new mapping
+
+#read in the HCC mapping document provided by the HCC software
+map2 <- read.delim("/project/msca/capstone3/F2213L2P.TXT",sep=" ",header=F)
+head(map2)
+# because there are different numbers of tabs, we need to create a new column that has all HCCs in 1 column.
+# create new column for "category"
+class(map2$V1)
+#convert to numeric
+map3 <- apply(map2[,2:7],2,as.numeric)
+#replace NAs with 0
+map3[is.na(map3)] <-0
+#create new column that contains all the HCCs (1 per row)
+map3 <- transform(map3,CC=V2+V3+V4+V5+V6+V7) #worked
+map2$CC <- map3$CC
+#remove obsolete rows
+map2$V2 <- NULL
+map2$V3 <- NULL
+map2$V4 <- NULL
+map2$V5 <- NULL
+map2$V6 <- NULL
+map2$V7 <- NULL
+names(map2) <- c("DIAG","CC")
+# now we have a direct mapping of icd9-code to CC.
+
+
+#next, we assign our patients to their respective condition categories
+patientHCC2<-"select DIAG.*, map2.* from DIAG left join map2 on DIAG.DIAG=map2.DIAG"
+patientHCC2<- sqldf(patientHCC2,stringsAsFactors=FALSE) #this works
+head(patientHCC2,30)
+# we find that, with the SAS mapping as well, we have patients who are given diagnoses that do not have corresponding condition categories
+# compare to the previous mapping
+head(patientHCC,30)
