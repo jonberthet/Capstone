@@ -1,0 +1,272 @@
+load("/project/msca/capstone3/all_tables_appended.RData")
+
+library(sqldf)
+
+
+#look at charges_all
+summary(charges_all$Charges)
+charges_all$Charges<-as.numeric(charges_all$Charges)#convert charges to numeric
+summary(charges_all$Charges)
+mean(charges_all$Charges, na.rm=T)#find charges mean
+var(charges_all$Charges, na.rm=T)#find charges var
+sd(charges_all$Charges, na.rm=T)#find charges sd
+sum(charges_all$Charges, na.rm=T)#sum of all charges
+str(charges_all$Charges)
+hist(charges_all$Charges)#hist of all charges
+charges_all1<-subset(charges_all, Charges>8547)#subset above 8547
+hist(charges_all1$Charges)
+charges_all2<-subset(charges_all, Charges>200000)#subset above 200000
+hist(charges_all2$Charges)
+charges_all3<-subset(charges_all, Charges>400000)#subset above 
+hist(charges_all3$Charges)
+charges_all4<-subset(charges_all, Charges>700000)#subset above 
+hist(charges_all4$Charges)
+charges_all5<-subset(charges_all, Charges>1000000)#subset above 
+hist(charges_all5$Charges)
+charges_all6<-subset(charges_all, Charges>1500000)#subset above 
+hist(charges_all6$Charges)
+charges_all7<-subset(charges_all, Charges>2000000)#subset above 
+hist(charges_all7$Charges)
+charges_all8<-subset(charges_all, Charges>3000000)#subset above 
+hist(charges_all8$Charges)
+charges_all9<-subset(charges_all, Charges>4000000)#subset above 
+hist(charges_all9$Charges)
+charges_all10<-subset(charges_all, Charges<1000000)#subset less than 1000000
+hist(charges_all10$Charges)
+
+
+#Look at percentages
+sum(charges_all1$Charges)#Sum charges greater than 8547
+sum(charges_all1$Charges)/sum(charges_all$Charges, na.rm=T)#Charges greater than 8547 make up 85.49% of total
+sum(charges_all2$Charges)#Sum charges greater than 200000
+sum(charges_all2$Charges)/sum(charges_all$Charges, na.rm=T)#Charges greater than 200000 make up 27.4%
+sum(charges_all3$Charges)#Sum charges greater than 400000
+sum(charges_all3$Charges)/sum(charges_all$Charges, na.rm=T)# 14.68%
+sum(charges_all4$Charges)#Sum charges greater than 700000
+sum(charges_all4$Charges)/sum(charges_all$Charges, na.rm=T)#9.25%
+sum(charges_all5$Charges)#Sum charges greater than 1000000
+sum(charges_all5$Charges)/sum(charges_all$Charges, na.rm=T)#5.5%
+sum(charges_all6$Charges)#Sum charges greater than 1500000
+sum(charges_all6$Charges)/sum(charges_all$Charges, na.rm=T)#2.8%
+sum(charges_all7$Charges)#Sum charges greater than 2000000
+sum(charges_all7$Charges)/sum(charges_all$Charges, na.rm=T)#1.9%
+sum(charges_all8$Charges)#Sum charges greater than 3000000
+sum(charges_all8$Charges)/sum(charges_all$Charges, na.rm=T)#0.5%
+sum(charges_all9$Charges)#Sum charges greater than 4000000
+sum(charges_all9$Charges)/sum(charges_all$Charges, na.rm=T)#0.1%
+sum(charges_all10$Charges)#Sum charges less than 1M
+sum(charges_all10$Charges)/sum(charges_all$Charges, na.rm=T)#94.46%
+
+#Join charges_all with ICD9DX
+join_string7<-"select charges_all.*, icd9Dx.icd9_dx, icd9Dx.icd9_txt, icd9Dx.rank from charges_all left join icd9Dx on charges_all.patient_id=icd9Dx.patient_id and charges_all.encounter_id=icd9Dx.encounter_id"
+charges_all_join_ICD9DX<-sqldf(join_string7,stringsAsFactors=FALSE)
+head(charges_all_join_ICD9DX)
+tail(charges_all_join_ICD9DX)
+charges_all_join_ICD9DX$patient_id<-NULL
+charges_all_join_ICD9DX$encounter_id<-NULL
+charges_all_join_ICD9DX$Direct_Cost<-NULL
+charges_all_join_ICD9DX$Indirect_Cost<-NULL
+charges_all_join_ICD9DX$Operating_Cost<-NULL
+charges_all_join_ICD9DX$icd9_txt<-NULL
+charges_all_join_ICD9DX$rank<-NULL
+head(charges_all_join_ICD9DX)
+tail(charges_all_join_ICD9DX)
+str(charges_all_join_ICD9DX)
+#PCA and clusters
+charges_all_join_ICD9DX$Charges<-as.numeric(charges_all_join_ICD9DX$Charges)
+str(charges_all_join_ICD9DX)
+charges_all_join_ICD9DXheat<-data.frame(charges_all_join_ICD9DX)
+head(charges_all_join_ICD9DXheat)
+length(unique(charges_all_join_ICD9DXheat$icd9_dx))
+length(charges_all_join_ICD9DXheat$icd9_dx)
+library(plyr)
+ddplyicd9dx<-ddply(charges_all_join_ICD9DXheat, .(icd9_dx), summarize, mean_charge=(mean(Charges, na.rm=TRUE)))
+head(ddplyicd9dx)
+tail(ddplyicd9dx)
+length(unique(ddplyicd9dx$icd9_dx))
+length(ddplyicd9dx$icd9_dx)
+str(ddplyicd9dx)
+ddplyicd9dx$icd9_dx<-factor(ddplyicd9dx$icd9_dx)
+ddplyicd9dx<-data.frame(ddplyicd9dx)
+length(is.na(ddplyicd9dx$icd9_dx))
+ddplyicd9dx<-na.omit(ddplyicd9dx)
+ddplyicd9dx<-ddplyicd9dx[order(ddplyicd9dx$mean_charge),]
+row.names(ddplyicd9dx)=ddplyicd9dx$icd9_dx
+head(ddplyicd9dx)
+tail(ddplyicd9dx)
+
+ddplyicd9dx$icd9_dx<-NULL
+head(ddplyicd9dx)
+tail(ddplyicd9dx)
+ddplyicd9dx_matrix<-data.matrix(ddplyicd9dx)
+means<- apply(ddplyicd9dx_matrix,2,mean)
+sds<-apply(ddplyicd9dx_matrix,2,sd)
+icd9.scale<-scale(ddplyicd9dx_matrix,center=means,scale=sds)
+#icd9.pca<-(icd9.scale)
+set.seed(10)
+fit<-kmeans(icd9.scale, 10)
+aggregate(icd9.scale, by=list(fit$cluster),FUN=mean)
+k<-data.frame(icd9.scale, fit$cluster)
+plot(k)
+
+#NEED to add another variable, doesn't work
+icd.dist<-dist(icd9.scale)
+icd.hclust<-hclust(icd.dist)
+row.hclust<-icd.hclust
+row.dendro<-as.dendrogram(row.hclust)
+heatmap(as.matrix(icd9.scale),Rowv=row.dendro)
+
+
+ddplyicd9dx_matrix$cluster<-fit$cluster
+icd9.pca<-prcomp(icd9.scale, scale=TRUE)
+plot(icd9.pca)
+
+
+
+install.packages("ggplot2")
+library(ggplot2)
+
+p<-ggplot(ddplyicd9dx, aes(variable, icd9_dx)+ geom_tile(aes(fill= Charges), + colour = "white") + scale_fill_gradient(low = "white", + high = "steelblue"))
+heatmap(ddplyicd9dx, Colv=NA, Rowv=NA, labRow=NA)
+#descriptive stats
+summary(charges_all_join_ICD9DX$Charges)
+charges_all_join_ICD9DX$Charges<-as.numeric(charges_all_join_ICD9DX$Charges)#convert charges to numeric
+summary(charges_all_join_ICD9DX$Charges)
+mean(charges_all_join_ICD9DX$Charges, na.rm=T)#find charges mean
+var(charges_all_join_ICD9DX$Charges, na.rm=T)#find charges var
+sd(charges_all_join_ICD9DX$Charges, na.rm=T)#find charges sd
+sum(charges_all_join_ICD9DX$Charges, na.rm=T)#sum of all charges
+str(charges_all_join_ICD9DX$Charges)
+hist(charges_all_join_ICD9DX$Charges)#hist of all charges
+charges_all_join_ICD9DX1<-subset(charges_all_join_ICD9DX, Charges>47650)#subset above the mean
+hist(charges_all_join_ICD9DX1$Charges)
+boxplot(charges_all_join_ICD9DX1$Charges)
+charges_all_join_ICD9DX2<-subset(charges_all_join_ICD9DX, Charges>700000)#subset above 700000
+hist(charges_all_join_ICD9DX2$Charges)
+boxplot(charges_all_join_ICD9DX2$Charges)
+charges_all_join_ICD9DX3<-subset(charges_all_join_ICD9DX, Charges>2000000)#subset above 2000000
+hist(charges_all_join_ICD9DX3$Charges)
+boxplot(charges_all_join_ICD9DX3$Charges)
+unique(charges_all_join_ICD9DX3$Charges)
+unique(charges_all_join_ICD9DX3$icd9_dx)
+unique(charges_all_join_ICD9DX3$rank)
+plot(unique(charges_all_join_ICD9DX3$rank))
+charges_all_join_ICD9DX4<-subset(charges_all_join_ICD9DX, Charges>3000000)#subset above 3000000
+hist(charges_all_join_ICD9DX4$Charges)
+boxplot(charges_all_join_ICD9DX4$Charges)
+unique(charges_all_join_ICD9DX4$Charges)
+unique(charges_all_join_ICD9DX4$icd9_dx)
+unique(charges_all_join_ICD9DX4$rank)
+plot(unique(charges_all_join_ICD9DX4$rank))
+charges_all_join_ICD9DX5<-subset(charges_all_join_ICD9DX, Charges>=4000000)#subset above 4000000
+hist(charges_all_join_ICD9DX5$Charges)
+unique(charges_all_join_ICD9DX5$Charges)
+length(charges_all_join_ICD9DX5$Charges)
+unique(charges_all_join_ICD9DX5$icd9_dx)
+unique(charges_all_join_ICD9DX5$icd9_txt)
+unique(charges_all_join_ICD9DX5$rank)
+plot(unique(charges_all_join_ICD9DX5$rank))
+#Major findings are that the vast majority of charges are heavily skewed to the left (smaller charges).  However, there are a 5 peaks over $3,000,000 which are 4044716 3768078 3081751 3223874 3624539.  The ICD9_dx codes which constitute these high $ amounts are narrowed down after subsetting the population for >3,000,000 and the icd9dx is narrowed even further when subsetting >4,000,000  
+charges_all_join_ICD9DX6<-subset(charges_all_join_ICD9DX, Charges<47650)
+sum(charges_all_join_ICD9DX6$Charges)#Sum charges less than 47650
+sum(charges_all_join_ICD9DX6$Charges)/sum(charges_all_join_ICD9DX$Charges, na.rm=T)#Charges less than 47650 make up 12.41 percent of total charges
+charges_all_join_ICD9DX7<-subset(charges_all_join_ICD9DX, Charges<2000000)
+sum(charges_all_join_ICD9DX7$Charges)#Sum charges less than 2,000,000
+sum(charges_all_join_ICD9DX7$Charges)/sum(charges_all_join_ICD9DX$Charges, na.rm=T)#Charges less than 2M make up 94.33% of total charges
+
+sum(charges_all_join_ICD9DX1$Charges)#Sum charges over 47650
+sum(charges_all_join_ICD9DX1$Charges)/sum(charges_all_join_ICD9DX$Charges, na.rm=T)#Charges greater than 47650 make up 87.6% of total charges
+sum(charges_all_join_ICD9DX2$Charges)#Sum charges over 700000
+sum(charges_all_join_ICD9DX2$Charges)/sum(charges_all_join_ICD9DX$Charges, na.rm=T)#Charges greater than 700000 make up 24.89% of total charges
+sum(charges_all_join_ICD9DX3$Charges)#Sum charges over 2000000
+sum(charges_all_join_ICD9DX3$Charges)/sum(charges_all_join_ICD9DX$Charges, na.rm=T)
+sum(charges_all_join_ICD9DX4$Charges)#Sum charges over 3000000
+sum(charges_all_join_ICD9DX4$Charges)/sum(charges_all_join_ICD9DX$Charges, na.rm=T)
+sum(charges_all_join_ICD9DX5$Charges)#Sum charges over 4000000
+sum(charges_all_join_ICD9DX5$Charges)/sum(charges_all_join_ICD9DX$Charges, na.rm=T)
+#Major take-away are that charges less than 2,000,000 make up 94% of total costs.  Although frequency of charges less than the mean is very high, those charges only make up 12.41% of total.  Charges over the mean make up 87.6% of total
+
+
+#Join charges_all with flow
+join_string8<-"select charges_all.*, flow.flo_meas_name, flow.meas_value, flow.flo_group_name, flow.units from charges_all left join flow on charges_all.patient_id=flow.patient_id and charges_all.encounter_id=flow.encounter_id"
+charges_all_join_flow<-sqldf(join_string8,stringsAsFactors=FALSE)
+head(charges_all_join_flow)
+tail(charges_all_join_flow)
+#descriptive stats
+summary(charges_all_join_flow$Charges)
+charges_all_join_flow$Charges<-as.numeric(charges_all_join_flow$Charges)#convert charges to numeric
+summary(charges_all_join_flow$Charges)
+mean(charges_all_join_flow$Charges, na.rm=T)#find charges mean
+var(charges_all_join_flow$Charges, na.rm=T)#find charges var
+sd(charges_all_join_flow$Charges, na.rm=T)#find charges sd
+sum(charges_all_join_flow$Charges, na.rm=T)#sum of all charges
+str(charges_all_join_flow$Charges)
+hist(charges_all_join_flow$Charges)#hist of all charges
+
+
+
+
+#Join charges_all with labs
+join_string9<-"select charges_all.*, labs.proc_code, labs.component_name, labs.lab_value, labs.ref_unit from charges_all left join labs on charges_all.patient_id=labs.patient_id and charges_all.encounter_id=labs.encounter_id"
+charges_all_join_labs<-sqldf(join_string9,stringsAsFactors=FALSE)
+head(charges_all_join_labs)
+tail(charges_all_join_labs)
+#descriptive stats
+summary(charges_all_join_labs$Charges)
+charges_all_join_labs$Charges<-as.numeric(charges_all_join_labs$Charges)#convert charges to numeric
+summary(charges_all_join_labs$Charges)
+mean(charges_all_join_labs$Charges, na.rm=T)#find charges mean
+var(charges_all_join_labs$Charges, na.rm=T)#find charges var
+sd(charges_all_join_labs$Charges, na.rm=T)#find charges sd
+sum(charges_all_join_labs$Charges, na.rm=T)#sum of all charges
+str(charges_all_join_labs$Charges)
+hist(charges_all_join_labs$Charges)#hist of all charges
+
+#join charges_all with MedsOut
+join_string10<-"select charges_all.*, medsOut.med_name, medsOut.order_med_dose, medsOut.order_med_freq, medsOut.med_pharm_class, medsOut.med_thera_class from charges_all left join medsOut on charges_all.patient_id=medsOut.patient_id and charges_all.encounter_id=medsOut.encounter_id"
+charges_all_join_medsOut<-sqldf(join_string10,stringsAsFactors=FALSE)
+head(charges_all_join_medsOut)
+tail(charges_all_join_medsOut)
+#descriptive stats
+summary(charges_all_join_medsOut$Charges)
+charges_all_join_medsOut$Charges<-as.numeric(charges_all_join_medsOut$Charges)#convert charges to numeric
+summary(charges_all_join_medsOut$Charges)
+mean(charges_all_join_medsOut$Charges, na.rm=T)#find charges mean
+var(charges_all_join_medsOut$Charges, na.rm=T)#find charges var
+sd(charges_all_join_medsOut$Charges, na.rm=T)#find charges sd
+sum(charges_all_join_medsOut$Charges, na.rm=T)#sum of all charges
+str(charges_all_join_medsOut$Charges)
+hist(charges_all_join_medsOut$Charges)#hist of all charges
+
+#join charges_all with PatEncFin
+join_string11<-"select charges_all.*, patEncFin.age_at_enc, patEncFin.adm_date_offset, patEncFin.disch_date_offset, patEncFin.enc_eio, patEncFin.enc_fin_class, patEncFin.discharge_dispo from charges_all left join patEncFin on charges_all.patient_id=patEncFin.patient_id and charges_all.encounter_id=patEncFin.encounter_id"
+charges_all_join_patEncFin<-sqldf(join_string11,stringsAsFactors=FALSE)
+head(charges_all_join_patEncFin)
+tail(charges_all_join_patEncFin)
+#descriptive stats
+summary(charges_all_join_patEncFin$Charges)
+charges_all_join_patEncFin$Charges<-as.numeric(charges_all_join_patEncFin$Charges)#convert charges to numeric
+summary(charges_all_join_patEncFin$Charges)
+mean(charges_all_join_patEncFin$Charges, na.rm=T)#find charges mean
+var(charges_all_join_patEncFin$Charges, na.rm=T)#find charges var
+sd(charges_all_join_patEncFin$Charges, na.rm=T)#find charges sd
+sum(charges_all_join_patEncFin$Charges, na.rm=T)#sum of all charges
+str(charges_all_join_patEncFin$Charges)
+hist(charges_all_join_patEncFin$Charges)#hist of all charges
+
+#join charges_all with patfin
+join_string12<-"select charges_all.*, patfin.sex, patfin.race, patfin.ethnicity, patfin.marital_status, patfin.dod_off from charges_all left join patfin on charges_all.patient_id=patfin.patient_id"
+charges_all_join_patfin<-sqldf(join_string12,stringsAsFactors=FALSE)
+head(charges_all_join_patfin)
+tail(charges_all_join_patfin)
+#descriptive stats
+summary(charges_all_join_patfin$Charges)
+charges_all_join_patfin$Charges<-as.numeric(charges_all_join_patEncFin$Charges)#convert charges to numeric
+summary(charges_all_join_patfin$Charges)
+mean(charges_all_join_patfin$Charges, na.rm=T)#find charges mean
+var(charges_all_join_patfin$Charges, na.rm=T)#find charges var
+sd(charges_all_join_patfin$Charges, na.rm=T)#find charges sd
+sum(charges_all_join_patfin$Charges, na.rm=T)#sum of all charges
+str(charges_all_join_patfin$Charges)
+hist(charges_all_join_patfin$Charges)#hist of all charges
+
