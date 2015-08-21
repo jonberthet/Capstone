@@ -7,15 +7,136 @@ length(train)
 nrow(patfin) - length(train)
 # there are __ observations in our validation set
 
+#Clustering
 #Regression
-
-
 #Tree
-
-
 #RF
-
-
 #Boosting
+
+#Clean Dates
+library("lubridate", lib.loc="/home/jberthet/R/x86_64-unknown-linux-gnu-library/3.2")
+df <- ymd_hms(flow$recorded_time_off)
+unique(flow$recorded_time_off)
+
+
+#Exploratory Work
+#Gender. #1 = F, 2 = M
+plot(patfin1$sex, main = "Gender")
+table(patfin1$sex)
+female <- 6595 / length(patfin1$sex); female
+male <- 5606 / length(patfin1$sex); male
+
+#Race
+racepl <- as.data.frame(table(patfin1[,3]))
+racepl2 <- as.data.frame(racepl[with(racepl, order(-Freq)), ]) ; racepl2
+
+#Ethnicity
+ethpl <- as.data.frame(table(patfin1[,4]))
+ethpl2 <- as.data.frame(ethpl[with(ethpl, order(-Freq)), ]) ; ethpl2
+
+#relationship
+plot(patfin1$marital_status, main = "Relationship")
+table(patfin1$marital_status)
+relpl <- as.data.frame(table(patfin1[,5]))
+relpl2 <- as.data.frame(relpl[with(relpl, order(-Freq)), ]) ; relpl2
+plot(relpl2, type = "l")
+
+#Age
+hist(patEncFin1$age_at_enc, main = "Age")
+
+#All combos of demographics
+df <- as.data.frame(table(patfin1[,c(2,3,5)]))
+alldemog <- df[with(df, order(-Freq)), ] ; head(alldemog,125)
+
+###CLUSTERING###
+#Cluster patients based on past encounter histories. Goal: ID similar patients so their costs can be better predited
+#data matrix: rows=patients, cols = costs?
+#For HC, dissimilarity measure? Euclidean distance groups patients w/ # of diagnoses. Correlation distance groups ppl based on similar diagnoses.
+#HC, linkage used: Complete, Single, Avg, or Centroid (p. 395 ISLR)
+#scaling/standardized? high frequency diagnoses have more effect on inter-patient dissimilarities and on clustering. If scaling occurs (sd=1), then each variable will have equal importance in HC performed. Scale if units different too!
+
+hccmod <- merge(patfin1, patEncFin1, by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+age_provdf <- as.data.frame(hccmod)
+age_provdf <- age_provdf[,c(1,8,12)]
+
+age_provm <- data.matrix(hccmod)
+age_provm <- cbind(age_provm[,c(1,8,12)])
+
+# Provider Info
+table(as.numeric(age_prov[,3]))
+ddp <- as.data.frame(table(age_prov[,3]))
+ddp <- dd[with(dd, order(-Freq)), ] 
+
+#Age Info
+table(as.numeric(age_provm[,2]))
+dda <- as.data.frame(table(age_provm[,2]))
+dda <- dda[with(dda, order(-Freq)), ] 
+
+#Group admit.priority
+head(chargesAdmitPriority)
+table(chargesAdmitPriority$Admit.Priority.Name)
+admprior <- as.data.frame(table(chargesAdmitPriority[,c(3,4)]))
+admprior2 <- as.data.frame(admprior[with(admprior, order(-Freq)), ]) ; head(admprior2,6)
+
+
+####KMEANS####
+#For kmeans, need 2D data
+#kmeans age_at_enc, K=2, but everything is numeric (this is wrong cuz prov becomes non-integers.)
+km.age.prov <- kmeans(data.matrix(age_provm[,c(2,3)]), 6, nstart=50)
+plot(data.matrix(age_provm[,c(2,3)]), col = (km.age.prov$cluster+1), main = "kmeans k=6", pch=20, cex=1)
+km.age.prov$centers
+
+#cluster charges
+km.charges <- kmeans(data.matrix(charges[,3]), 10, nstart=20)
+plot(data.matrix(charges[,3]), col = (km.charges$cluster+1), main = "kmeans k=6", pch=20, cex=1)
+#Bind cluster categories w/ 'charges' table
+chclust <- as.numeric(km.charges$cluster)
+charges$chargesClustered <- chclust
+
+
+#Cluster on Admit.Priority.Name and Units
+#kmeans age_at_enc, K=2, but everything is numeric (this is wrong cuz prov becomes non-integers.)
+km.admit.units <- kmeans(data.matrix(chargesAdmitPriority[,c(4,6,9)]), 6, nstart=30)
+# km.age$cluster
+plot(data.matrix(chargesAdmitPriority[,c(4,6,9)]), col = (km.admit.units$cluster+1), main = "kmeans k=6", pch=20, cex=1)
+km.admit.units$centers
+unique(chargesAdmitPriority[,4])
+
+#HC
+hc.complete <- hclust(dist(age_provm[,c(2,3)]), method = "complete")
+plot(hc.complete, main = "Complete Linkage", cex = 0.9)
+
+
+###DECISION TREE###
+library("tree", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
+#Classification Tree
+colnames(charges)[2] <- "patient_id" 
+colnames(charges)[6] <- "clusters" 
+
+icd9.2 <- icd9Dx1
+icd9.2$icd9_dx <- as.numeric(as.character(icd9.2$icd9_dx)) 
+
+charge_icd9 <- merge(charges, icd9.2, by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+#Get rows w/ just rank<=32, cuz tree doesn't accept more.
+ch9w32 <- charge_icd9[charge_icd9$rank <= 32,]
+
+tree.charges <- tree(clusters ~ rank + icd9_dx, data=ch9w32)
+summary(tree.charges)
+plot(tree.charges, main = "pretty=0")
+text(tree.charges, pretty=0)
+
+
+#Estimate test error
+train <- sample(1:nrow(ch9w32),700000)  #training size
+ch9w32.test <- ch9w32[-train,]     #test data
+ch9.test <- ch9w32$clusters[-train]
+#NOTE: tree takes at MOST 32 categories
+tree.ch9 <- tree(clusters ~ rank, ch9w32, subset=train)
+tree.pred <- predict(tree.ch9, ch9.test, type = "class")    #ERROR cuz won't calculate
+table(tree.pred, ch9.test)
+
+
+#Cross Validate
+
 
 
