@@ -1,0 +1,29 @@
+library(plyr)
+Medcount<-count(medsOut[1:486941,],vars="encounter_id")
+head(Medcount)
+tail(Medcount)
+plot(Medcount)
+library(sqldf)
+join_stringmedcount<-"select charges_all.*, Medcount.freq from charges_all left join Medcount on charges_all.encounter_id=Medcount.encounter_id"
+charges_all_join_Medcount<-sqldf(join_stringmedcount,stringsAsFactors=FALSE)
+head(charges_all_join_Medcount)
+tail(charges_all_join_Medcount)
+plot(charges_all_join_Medcount$Charges,charges_all_join_Medcount$freq)
+charges_all_join_Medcount$patient_id<-NULL
+charges_all_join_Medcount$Direct_Cost<-NULL
+charges_all_join_Medcount$Indirect_Cost<-NULL
+charges_all_join_Medcount$Operating_Cost<-NULL
+head(charges_all_join_Medcount)
+tail(charges_all_join_Medcount)
+str(charges_all_join_Medcount)
+charges_all_join_Medcount$Charges<-as.numeric(charges_all_join_Medcount$Charges)
+charges_all_join_Medcount$freq<-as.numeric(charges_all_join_Medcount$freq)
+
+head(charges_all_join_Medcount)
+tail(charges_all_join_Medcount)
+str(charges_all_join_Medcount)
+charges_all_join_Medcount$encounter_id<-NULL
+head(charges_all_join_Medcount)
+hist(charges_all_join_Medcount, na.rm=T)
+plot(charges_all_join_Medcount$Charges,charges_all_join_Medcount$freq, na.rm=T)
+abline(lm(charges_all_join_Medcount$freq~charges_all_join_Medcount$Charges))
