@@ -48,3 +48,26 @@ head(patientHCC2,30)
 # we find that, with the SAS mapping as well, we have patients who are given diagnoses that do not have corresponding condition categories
 # compare to the previous mapping
 head(patientHCC,30)
+
+
+#####JON's 8/21/15 CODE#####
+##NOTE: Below, I:
+#1) begin to group demographics and clean the data (turn 'W' to 'White', etc...
+#2) Make times readable and created a duration of stay from the patEncFin table.
+
+load("/project/msca/capstone3/all_tables_appended.RData")
+icd9ProbList1 <- read.delim("/project/msca/data/uchicagomed/Capstone/dr_9389_icd9_prob_list.txt",sep="|",quote="",header=T)
+
+head(patfin)
+patfin2 <- patfin
+#clean race
+patfin$race[patfin$race == 'B'] <- 'Black/African-American'
+patfin$race[patfin$race == 'W'] <- 'White'
+
+#Organize date and time.   FYI - all tables w/ times involved are: icd9Dx, icd9_prob_list, icd9_proc, labs, meds_out,meds_in, flow
+library("lubridate", lib.loc="/home/jberthet/R/x86_64-unknown-linux-gnu-library/3.2")
+pef3 <- patEncFin
+pef3$arrival <- ymd_hms(pef3$adm_date_offset)
+pef3$departure <- ymd_hms(pef3$disch_date_offset)
+pef3$duration <- seconds_to_period(pef2[,10] - pef2[,9])
+pef3[2,11] + pef3[4,11]  #shows that you can arithmatic the dates
