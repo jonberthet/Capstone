@@ -1,0 +1,216 @@
+load("/project/msca/capstone3/all_tables_appended.RData")
+#Read dates and create 'duration' variable
+library(lubridate)
+pef3<- patEncFin
+pef3$arrival <- ymd_hms(pef3$adm_date_offset)
+pef3$departure <- ymd_hms(pef3$disch_date_offset)
+pef3$duration <- seconds_to_period(pef3[,10] - pef3[,9])
+pef3[2,11] + pef3[4,11]  #shows that you can add the dates (ie - compare)
+pef3$los<- day(pef3$duration)#length of stay in days
+head(pef3)
+tail(pef3)
+pef3<-subset(pef3, !is.na(los)) #remove all NA's because some of the patients are inpatients and some had no hospitalizations, but their date of discharge was still NA 
+head(pef3)
+library(sqldf)
+summary(patfin$race)
+#Add age to patfin table
+join_patfinage <- merge(patfin,pef3,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+head(join_patfinage)
+#join_stringpatfin<-"select patfin.*, patEncFin.age_at_enc from patfin left join patEncFin on patfin.patient_id=patEncFin.patient_id"
+#join_patfinage<-sqldf(join_stringpatfin,stringsAsFactors=FALSE)
+
+
+join_patfinage$adm_date_offset<-NULL
+join_patfinage$disch_date_offset<-NULL
+join_patfinage$enc_eio<-NULL
+join_patfinage$discharge_dispo<-NULL
+join_patfinage$departure<-NULL
+join_patfinage$duration<-NULL
+head(join_patfinage)
+tail(join_patfinage)
+library(dplyr)
+#join_patfinage<-join_patfinage %>% distinct #remove duplicate rows
+head(join_patfinage)
+length(join_patfinage$patient_id)
+length(unique(join_patfinage$patient_id))
+
+#Add sum los and encounter freq
+
+sumlos <- ddply(join_patfinage,.(patient_id),summarise,sumlos=sum(los))#find sum of length of stays across encounters
+head(sumlos)
+
+
+join_patfinage$encounter_id <- 1
+encountfreq<-ddply(join_patfinage,.(patient_id),summarise,encountfreq=sum(encounter_id))#find sum of length of stays across encounters
+head(encountfreq)
+
+losjoin <- merge(join_patfinage,sumlos,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+encountjoin<- merge(losjoin,encountfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+
+
+#Add hospitilizations and total patient costs
+patfinutil <- merge(encountjoin,patient_util,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+head(patfinutil)
+patfinutil<-patfinutil %>% distinct #remove duplicate rows
+head(patfinutil)
+length(patfinutil$patient_id)
+length(unique(patfinutil$patient_id))
+patfinutil<-patfinutil[!duplicated(paste(patfinutil[,1])),] #remove all duplicated patient ID's
+head(patfinutil)
+tail(patfinutil)
+
+patfinutil$encounter_id<-NULL
+patfinutil$los<-NULL
+head(patfinutil)
+tail(patfinutil)
+#Test/Train:
+#Train = All '12 + Q1,Q2 '13 + 50% of random('13Q3 - '14Q2)
+#Test = All '15 + Q3,Q4 '14 + 50% of random('12Q3 - '13Q2)
+
+hist(patfinutil$arrival, breaks = 100)  #Distribution of time
+train1 <- patfinutil[patfinutil$arrival <= "2012-12-31",]
+train2 <- patfinutil[ which(patfinutil$arrival >= "2013-01-01" & patfinutil$arrival <= "2013-06-30"),]
+#50% split
+split1 <- patfinutil[ which(patfinutil$arrival >= "2013-07-01" & patfinutil$arrival <= "2014-06-30"),]
+ssize <- floor(0.5*nrow(split1))
+train_ind <- sample(seq_len(nrow(split1)), size= ssize)
+train3 <- split1[train_ind,]
+train <- rbind(train1, train2, train3)
+
+
+#Test
+test1 <- patfinutil[patfinutil$arrival >= "2015-01-01",]
+test2 <- patfinutil[ which(patfinutil$arrival >= "2014-07-01" & patfinutil$arrival <= "2014-12-31"),]
+test3 <- split1[-train_ind,]
+test <-rbind(test1, test2, test3)
+
+
+#Test/Train based on mean arrival
+train.mean <- pef3[pef3$arrival >= mean(pef3$arrival),]
+test.mean <- pef3[pef3$arrival < mean(pef3$arrival),]
+
+#Test/Train based on median arrival
+train.median <- pef3[pef3$arrival >= median(pef3$arrival),]
+test.median <- pef3[pef3$arrival < median(pef3$arrival),]
+
+#Full population, no subsets
+fulllmhosp<-lm(total_charges~hospitalizations, data=train)
+summary(fulllmhosp)
+plot(fulllmhosp)
+fulllmhosp.MSE <- mean((fulllmhosp$fitted.values - train$total_charges)^2)
+
+
+fulllmlos<-lm(total_charges~sumlos, data=train)
+summary(fulllmlos)
+plot(fulllmlos)
+
+fulllmencount<-lm(total_charges~encountfreq, data=train)
+summary(fulllmencount)
+plot(fulllmencount)
+
+fulllmhosplosencount<-lm(total_charges~hospitalizations+sumlos+encountfreq, data=train)
+summary(fulllmhosplosencount)
+plot(fulllmhosplosencount)
+fulllmhosplosencount.MSE <- mean((fulllmhosplosencount$fitted.values - train$total_charges)^2)
+
+predictfull<-predict(fulllmhosplosencount,newdata=test)
+summary(predictfull)
+fulllmhosplosencounttest.MSE <- mean((predictfull - test$total_charges)^2)
+
+##################
+##################
+###COMPARATIVE STATS######
+fulllmhosplosencount.MSE
+AIC(fulllmhosplosencount)
+
+fulllmhosplosencounttest.MSE
+AIC(fulllmhosplosencounttest)
+
+fulllmhosplosencount.MSE-fulllmhosplosencounttest.MSE
+
+
+##################
+##################
+
+#convert B's to Black/African-American
+train$race[train$race == 'B']<-'Black/African-American'
+head(train)
+#Subset Black race
+Black<-subset(train, race == "Black/African-American")
+head(Black)
+Black65up<-subset(Black, age_at_enc >= 65)
+Black64lower<-subset(Black, age_at_enc < 65)
+head(Black65up)
+tail(Black65up)
+head(Black64lower)
+tail(Black64lower)
+length(Black$patient_id)
+length(unique(Black$patient_id))
+
+#Run a linear regression for Blacks age 65 and up
+black65lmhosp<-lm(total_charges~hospitalizations, data=Black65up)
+summary(black65lm)
+plot(black65lm)
+
+black64lm<-lm(total_charges~hospitalizations, data=Black64lower)
+summary(black64lm)
+plot(black64lm)
+
+####KMEANS####
+#For kmeans, need 2D data
+#kmeans age_at_enc, K=2, but everything is numeric (this is wrong cuz prov becomes non-integers.)
+km.age.prov <- kmeans(data.matrix(age_provm[,c(2,3)]), 6, nstart=50)
+plot(data.matrix(age_provm[,c(2,3)]), col = (km.age.prov$cluster+1), main = "kmeans k=6", pch=20, cex=1)
+km.age.prov$centers
+
+#cluster charges
+km.charges <- kmeans(data.matrix(charges[,3]), 10, nstart=20)
+plot(data.matrix(charges[,3]), col = (km.charges$cluster+1), main = "kmeans k=6", pch=20, cex=1)
+#Bind cluster categories w/ 'charges' table
+chclust <- as.numeric(km.charges$cluster)
+charges$chargesClustered <- chclust
+
+
+#Cluster on Admit.Priority.Name and Units
+#kmeans age_at_enc, K=2, but everything is numeric (this is wrong cuz prov becomes non-integers.)
+km.admit.units <- kmeans(data.matrix(chargesAdmitPriority[,c(4,6,9)]), 6, nstart=30)
+# km.age$cluster
+plot(data.matrix(chargesAdmitPriority[,c(4,6,9)]), col = (km.admit.units$cluster+1), main = "kmeans k=6", pch=20, cex=1)
+km.admit.units$centers
+unique(chargesAdmitPriority[,4])
+
+#HC
+hc.complete <- hclust(dist(age_provm[,c(2,3)]), method = "complete")
+plot(hc.complete, main = "Complete Linkage", cex = 0.9)
+
+
+#Decision Tree
+library("tree", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
+#Classification Tree
+colnames(charges)[2] <- "patient_id"
+colnames(charges)[6] <- "clusters"
+
+icd9.2 <- icd9Dx1
+icd9.2$icd9_dx <- as.numeric(as.character(icd9.2$icd9_dx))
+
+charge_icd9 <- merge(charges, icd9Dx, by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+#Get rows w/ just rank<=32, cuz tree doesn't accept more.
+ch9w32 <- charge_icd9[charge_icd9$rank <= 32,]
+
+tree.charges <- tree(clusters ~ rank + icd9_dx, data=ch9w32)
+summary(tree.charges)
+plot(tree.charges, main = "pretty=0")
+text(tree.charges, pretty=0)
+
+
+
+
+
+#Estimate test error
+train <- sample(1:nrow(ch9w32),700000)  #training size
+ch9w32.test <- ch9w32[-train,]     #test data
+ch9.test <- ch9w32$clusters[-train]
+#NOTE: tree takes at MOST 32 categories
+tree.ch9 <- tree(clusters ~ rank, ch9w32, subset=train)
+tree.pred <- predict(tree.ch9, ch9.test, type = "class")    #ERROR cuz won't calculate
+table(tree.pred, ch9.test)
