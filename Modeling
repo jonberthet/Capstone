@@ -1,211 +1,70 @@
-# example train-test split
 load("/project/msca/capstone3/all_tables_appended.RData")
-set.seed(123)
-train <- sample(1:nrow(patfin),floor(0.7*nrow(patfin)))
-length(train)
-# there are __ observations in our training set
-nrow(patfin) - length(train)
-# there are __ observations in our validation set
 
-#Clustering
-#Regression
-#Tree
-#RF
-#Boosting
-
-#Clean Dates
-library("lubridate", lib.loc="/home/jberthet/R/x86_64-unknown-linux-gnu-library/3.2")
-df <- ymd_hms(flow$recorded_time_off)
-unique(flow$recorded_time_off)
-
-
-#Exploratory Work
-#Gender. #1 = F, 2 = M
-plot(patfin1$sex, main = "Gender")
-table(patfin1$sex)
-female <- 6595 / length(patfin1$sex); female
-male <- 5606 / length(patfin1$sex); male
-
-#Race
-racepl <- as.data.frame(table(patfin1[,3]))
-racepl2 <- as.data.frame(racepl[with(racepl, order(-Freq)), ]) ; racepl2
-
-#Ethnicity
-ethpl <- as.data.frame(table(patfin1[,4]))
-ethpl2 <- as.data.frame(ethpl[with(ethpl, order(-Freq)), ]) ; ethpl2
-
-#relationship
-plot(patfin1$marital_status, main = "Relationship")
-table(patfin1$marital_status)
-relpl <- as.data.frame(table(patfin1[,5]))
-relpl2 <- as.data.frame(relpl[with(relpl, order(-Freq)), ]) ; relpl2
-plot(relpl2, type = "l")
-
-#Age
-hist(patEncFin1$age_at_enc, main = "Age")
-
-#All combos of demographics
-df <- as.data.frame(table(patfin1[,c(2,3,5)]))
-alldemog <- df[with(df, order(-Freq)), ] ; head(alldemog,125)
-
-###CLUSTERING###
-#Cluster patients based on past encounter histories. Goal: ID similar patients so their costs can be better predited
-#data matrix: rows=patients, cols = costs?
-#For HC, dissimilarity measure? Euclidean distance groups patients w/ # of diagnoses. Correlation distance groups ppl based on similar diagnoses.
-#HC, linkage used: Complete, Single, Avg, or Centroid (p. 395 ISLR)
-#scaling/standardized? high frequency diagnoses have more effect on inter-patient dissimilarities and on clustering. If scaling occurs (sd=1), then each variable will have equal importance in HC performed. Scale if units different too!
-
-hccmod <- merge(patfin1, patEncFin1, by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
-age_provdf <- as.data.frame(hccmod)
-age_provdf <- age_provdf[,c(1,8,12)]
-
-age_provm <- data.matrix(hccmod)
-age_provm <- cbind(age_provm[,c(1,8,12)])
-
-# Provider Info
-table(as.numeric(age_prov[,3]))
-ddp <- as.data.frame(table(age_prov[,3]))
-ddp <- dd[with(dd, order(-Freq)), ] 
-
-#Age Info
-table(as.numeric(age_provm[,2]))
-dda <- as.data.frame(table(age_provm[,2]))
-dda <- dda[with(dda, order(-Freq)), ] 
-
-#Group admit.priority
-head(chargesAdmitPriority)
-table(chargesAdmitPriority$Admit.Priority.Name)
-admprior <- as.data.frame(table(chargesAdmitPriority[,c(3,4)]))
-admprior2 <- as.data.frame(admprior[with(admprior, order(-Freq)), ]) ; head(admprior2,6)
-
-
-####KMEANS####
-#For kmeans, need 2D data
-#kmeans age_at_enc, K=2, but everything is numeric (this is wrong cuz prov becomes non-integers.)
-km.age.prov <- kmeans(data.matrix(age_provm[,c(2,3)]), 6, nstart=50)
-plot(data.matrix(age_provm[,c(2,3)]), col = (km.age.prov$cluster+1), main = "kmeans k=6", pch=20, cex=1)
-km.age.prov$centers
-
-#cluster charges
-km.charges <- kmeans(data.matrix(charges[,3]), 10, nstart=20)
-plot(data.matrix(charges[,3]), col = (km.charges$cluster+1), main = "kmeans k=6", pch=20, cex=1)
-#Bind cluster categories w/ 'charges' table
-chclust <- as.numeric(km.charges$cluster)
-charges$chargesClustered <- chclust
-
-
-#Cluster on Admit.Priority.Name and Units
-#kmeans age_at_enc, K=2, but everything is numeric (this is wrong cuz prov becomes non-integers.)
-km.admit.units <- kmeans(data.matrix(chargesAdmitPriority[,c(4,6,9)]), 6, nstart=30)
-# km.age$cluster
-plot(data.matrix(chargesAdmitPriority[,c(4,6,9)]), col = (km.admit.units$cluster+1), main = "kmeans k=6", pch=20, cex=1)
-km.admit.units$centers
-unique(chargesAdmitPriority[,4])
-
-#HC
-hc.complete <- hclust(dist(age_provm[,c(2,3)]), method = "complete")
-plot(hc.complete, main = "Complete Linkage", cex = 0.9)
-
-
-###DECISION TREE###
-library("tree", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
-#Classification Tree
-colnames(charges)[2] <- "patient_id" 
-colnames(charges)[6] <- "clusters" 
-
-icd9.2 <- icd9Dx1
-icd9.2$icd9_dx <- as.numeric(as.character(icd9.2$icd9_dx)) 
-
-charge_icd9 <- merge(charges, icd9.2, by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
-#Get rows w/ just rank<=32, cuz tree doesn't accept more.
-ch9w32 <- charge_icd9[charge_icd9$rank <= 32,]
-
-tree.charges <- tree(clusters ~ rank + icd9_dx, data=ch9w32)
-summary(tree.charges)
-plot(tree.charges, main = "pretty=0")
-text(tree.charges, pretty=0)
-
-
-#Estimate test error
-train <- sample(1:nrow(ch9w32),700000)  #training size
-ch9w32.test <- ch9w32[-train,]     #test data
-ch9.test <- ch9w32$clusters[-train]
-#NOTE: tree takes at MOST 32 categories
-tree.ch9 <- tree(clusters ~ rank, ch9w32, subset=train)
-tree.pred <- predict(tree.ch9, ch9.test, type = "class")    #ERROR cuz won't calculate
-table(tree.pred, ch9.test)
-
-
-#Katie Code:
-load("/project/msca/capstone3/all_tables_appended.RData")
-#Read dates and create 'duration' variable
 library(lubridate)
+library(sqldf)
+library("dplyr", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
+library("plyr", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
+library("rpart", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")#Classification Tree
+library("party", lib.loc="/home/kjtong/R/x86_64-unknown-linux-gnu-library/3.2")
+library("randomForest", lib.loc="/home/kjtong/R/x86_64-unknown-linux-gnu-library/3.2")
+
+########################
+#########STEP 1#########
+###VARIABLE CREATION####
+########################
+
+#Add 'duration' variable
 pef3<- patEncFin
 pef3$arrival <- ymd_hms(pef3$adm_date_offset)
 pef3$departure <- ymd_hms(pef3$disch_date_offset)
 pef3$duration <- seconds_to_period(pef3[,10] - pef3[,9])
-pef3[2,11] + pef3[4,11]  #shows that you can add the dates (ie - compare)
 pef3$los<- day(pef3$duration)#length of stay in days
-head(pef3)
-tail(pef3)
-pef3<-subset(pef3, !is.na(los)) #remove all NA's because some of the patients are inpatients and some had no hospitalizations, but their date of discharge was still NA 
-head(pef3)
-library(sqldf)
-summary(patfin$race)
-#Add age to patfin table
+pef3 <- subset(pef3, !is.na(los)) #remove all NA's because some of the patients are inpatients and some had no hospitalizations, but their date of discharge was still NA 
+
+#Add 'age' to patfin table
 join_patfinage <- merge(patfin,pef3,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
-head(join_patfinage)
-#join_stringpatfin<-"select patfin.*, patEncFin.age_at_enc from patfin left join patEncFin on patfin.patient_id=patEncFin.patient_id"
-#join_patfinage<-sqldf(join_stringpatfin,stringsAsFactors=FALSE)
-
-
 join_patfinage$adm_date_offset<-NULL
 join_patfinage$disch_date_offset<-NULL
 join_patfinage$enc_eio<-NULL
 join_patfinage$discharge_dispo<-NULL
 join_patfinage$departure<-NULL
 join_patfinage$duration<-NULL
-head(join_patfinage)
-tail(join_patfinage)
-library(dplyr)
-#join_patfinage<-join_patfinage %>% distinct #remove duplicate rows
-head(join_patfinage)
-length(join_patfinage$patient_id)
-length(unique(join_patfinage$patient_id))
 
-#Add sum los and encounter freq
-
-sumlos <- ddply(join_patfinage,.(patient_id),summarise,sumlos=sum(los))#find sum of length of stays across encounters
-head(sumlos)
-
-
+#Add sum los + encounter freq
+sumlos <- ddply(join_patfinage,.(patient_id),summarise,sumlos=sum(los))  #sum of LOS across encounters
 join_patfinage$encounter_id <- 1
 encountfreq<-ddply(join_patfinage,.(patient_id),summarise,encountfreq=sum(encounter_id))#find sum of length of stays across encounters
-head(encountfreq)
-
 losjoin <- merge(join_patfinage,sumlos,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
 encountjoin<- merge(losjoin,encountfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
 
+#Add hospitilizations + total patient costs. 
+enc_charges <- merge(charges_all,patEncFin,by.x=c("patient_id","encounter_id"),by.y=c("patient_id","encounter_id"), byall.x=TRUE)
+#number of hospitalizations per patient, plus cost
+enc_charges$inpatient <- 0
+enc_charges$inpatient[which(enc_charges$enc_eio=="E, I,")] <- 1
+enc_charges$inpatient[which(enc_charges$enc_eio=="I,")] <- 1
+enc_charges$inpatient[which(enc_charges$enc_eio=="I, O,")] <- 1
+charges.na <- as.numeric(enc_charges$Charges)
+enc_charges$Charges <- as.numeric(enc_charges$Charges)
+enc_charges <- enc_charges[-which(is.na(charges.na)),]
+patient_util <- ddply(enc_charges,"patient_id",summarise,hospitalizations=sum(inpatient),total_charges=sum(Charges))
 
-#Add hospitilizations and total patient costs
-patfinutil <- merge(encountjoin,patient_util,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
-head(patfinutil)
+patfinutil <- merge(encountjoin, patient_util,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
 patfinutil<-patfinutil %>% distinct #remove duplicate rows
-head(patfinutil)
 length(patfinutil$patient_id)
 length(unique(patfinutil$patient_id))
 patfinutil<-patfinutil[!duplicated(paste(patfinutil[,1])),] #remove all duplicated patient ID's
-head(patfinutil)
-tail(patfinutil)
-
 patfinutil$encounter_id<-NULL
 patfinutil$los<-NULL
-head(patfinutil)
-tail(patfinutil)
-#Test/Train:
+
+
+########################
+#########STEP 2#########
+######TEST / TRAIN######
+########################
+
 #Train = All '12 + Q1,Q2 '13 + 50% of random('13Q3 - '14Q2)
 #Test = All '15 + Q3,Q4 '14 + 50% of random('12Q3 - '13Q2)
-
 hist(patfinutil$arrival, breaks = 100)  #Distribution of time
 train1 <- patfinutil[patfinutil$arrival <= "2012-12-31",]
 train2 <- patfinutil[ which(patfinutil$arrival >= "2013-01-01" & patfinutil$arrival <= "2013-06-30"),]
@@ -215,10 +74,9 @@ ssize <- floor(0.5*nrow(split1))
 train_ind <- sample(seq_len(nrow(split1)), size= ssize)
 train3 <- split1[train_ind,]
 train <- rbind(train1, train2, train3)
-
 y=log(train$total_charges)#transform y to normal distribution
 train$total_charges <- replace(y,y=="-Inf",0)#remove -inf
-hist(train$total_charges)
+hist(train$total_charges,100)
 train <- subset(train, total_charges > 0) #remove 0's                         
                              
 #Test
@@ -230,44 +88,79 @@ y1=log(test$total_charges) #transform y to normal distribution
 test$total_charges <- replace(y1,y1=="-Inf",0)#remove -inf
 test <- subset(test, total_charges > 0) #remove 0's
 
+# #Test/Train based on mean arrival
+# train.mean <- pef3[pef3$arrival >= mean(pef3$arrival),]
+# test.mean <- pef3[pef3$arrival < mean(pef3$arrival),]
+ 
+# #Test/Train based on median arrival
+# train.median <- pef3[pef3$arrival >= median(pef3$arrival),]
+# test.median <- pef3[pef3$arrival < median(pef3$arrival),]
 
-#Test/Train based on mean arrival
-train.mean <- pef3[pef3$arrival >= mean(pef3$arrival),]
-test.mean <- pef3[pef3$arrival < mean(pef3$arrival),]
 
-#Test/Train based on median arrival
-train.median <- pef3[pef3$arrival >= median(pef3$arrival),]
-test.median <- pef3[pef3$arrival < median(pef3$arrival),]
 
-#Full population, no subsets
-library(MASS)
-library(car)
+########################
+#########STEP 3#########
+#########CLUSTER########
+########################
+
+#cluster charges, K=6
+trainmatrix<-data.matrix(train)
+km.charges <- kmeans(data.matrix(train[,13]), 6, nstart=50)
+plot(data.matrix(trainmatrix[,13]), col = (km.charges$cluster+1), main = "kmeans k=6", pch=20, cex=1)
+km.charges$centers
+#NOTE: cluster #s change after each run, so double check!
+#Bind cluster categories w/ 'charges' table
+train <- cbind(train, cl = km.charges$cluster)                                              
+chclust <- as.numeric(km.charges$cluster)
+train$chargesClustered <- chclust
+                              
+#Create Charge Cluster data
+c1 <- train[train$chargesClustered == 1,]
+c2 <- train[train$chargesClustered == 2,]
+c3 <- train[train$chargesClustered == 3,]
+c4 <- train[train$chargesClustered == 4,]
+c5 <- train[train$chargesClustered == 5,]
+c6 <- train[train$chargesClustered == 6,]
+
+#Summary of clusters
+summary(c1)[,3];summary(c2)[,3];summary(c3)[,3];summary(c4)[,3];summary(c5)[,3];summary(c6)[,3]
+nrow(c1); nrow(c2);nrow(c3);nrow(c4);nrow(c5)
+
+#mean charge by race by cluster
+ddply(c6, .(sex), summarise, mean_charge=mean(total_charges))
+
+
+########################
+#########STEP 4#########
+######LINEAR REG########
+########################
+
+#Full population
 hist(train$total_charges)
 
-
+#lm Hospitalizations
 fulllmhosp<-lm(total_charges~hospitalizations, data=train)
 summary(fulllmhosp)
-AIC(fulllmhosp)
-plot(fulllmhosp)
-
+# plot(fulllmhosp)
 fulllmhosp.MSE <- mean((fulllmhosp$fitted.values - train$total_charges)^2)
 
-
+#Sum LOS
 fulllmlos<-lm(total_charges~sumlos, data=train)
 summary(fulllmlos)
-AIC(fulllmlos)
-plot(fulllmlos)
+# plot(fulllmlos)
+fulllmlos.MSE <- mean((fulllmlos$fitted.values - train$total_charges)^2)
 
+#EncountFreq
 fulllmencount<-lm(total_charges~encountfreq, data=train)
 summary(fulllmencount)
-AIC(fulllmencount)
-plot(fulllmencount)
+# plot(fulllmencount)
+fulllmencount.MSE <- mean((fulllmencount$fitted.values - train$total_charges)^2)
 
+#Total
 fulllmhosplosencount<-lm(total_charges~hospitalizations+sumlos+encountfreq, data=train)
-
 summary(fulllmhosplosencount)
 anova(fulllmhosplosencount)
-plot(fulllmhosplosencount)
+# plot(fulllmhosplosencount)
 fulllmhosplosencount.MSE <- mean((fulllmhosplosencount$fitted.values - train$total_charges)^2)
 
 predictfull<-predict(fulllmhosplosencount,newdata=test)
@@ -281,62 +174,20 @@ hist(predictfull)
 ##################
 ##################
 ###COMPARATIVE STATS######
+#MSE
+fulllmhosp.MSE
+fulllmlos.MSE
+fulllmencount.MSE
 fulllmhosplosencount.MSE
-AIC(fulllmhosplosencount)
-
-fulllmhosplosencounttest.MSE
-AIC(fulllmhosplosencounttest)
 
 AIC(fulllmhosp)
 AIC(fulllmlos)
 AIC(fulllmencount)
+AIC(fulllmhosplosencount)
 #The transformed model with all 3 predictors performs best, hospitalizations is best predictor
 
-##################
-##################
-
-###Clustering Patients###
-
-
-####KMEANS####
-#For kmeans, need 2D data
-#kmeans age_at_enc, K=2, but everything is numeric (this is wrong cuz prov becomes non-integers.)
-trainmatrix<-data.matrix(train)
-km.charges <- kmeans(data.matrix(train[,13]), 6, nstart=50)
-plot(data.matrix(trainmatrix[,13]), col = (km.charges$cluster+1), main = "kmeans k=6", pch=20, cex=1)
-legend("topright", legend = c(1,
-km.charges$centers
-#Clusters from Small -> Largest: 6,5,4,1,2,3
-#Bind cluster categories w/ 'charges' table
-train <- cbind(train, cl = km.charges$cluster)                              
-                              
-chclust <- as.numeric(km.charges$cluster)
-train$chargesClustered <- chclust
-
-
-
-
-#Create Cluster data
-c1 <- train[train$chargesClustered == 1,]
-c2 <- train[train$chargesClustered == 2,]
-c3 <- train[train$chargesClustered == 3,]
-c4 <- train[train$chargesClustered == 4,]
-c5 <- train[train$chargesClustered == 5,]
-
-#Summary of clusters
-summary(c1)[,3]
-summary(c2)[,3]
-summary(c3)[,3]
-summary(c4)[,3]
-summary(c5)[,3]
-
-nrow(c1); nrow(c2);nrow(c3);nrow(c4);nrow(c5)
-
-#mean charge by race by cluster
-ddply(c1, .(sex), summarise, mean_charge=mean(total_charges))
 
 #Regressions for each cluster
-
 c1lm<-lm(total_charges~hospitalizations+sumlos+encountfreq, data=c1)
 summary(c1lm)
 AIC(c1lm)
@@ -358,75 +209,77 @@ summary(c5lm)
 AIC(c5lm)
 
 #Compare AIC
+AIC(c5lm);AIC(c1lm);AIC(c2lm);AIC(c3lm);AIC(c4lm)
 
-AIC(c1lm)
-AIC(c2lm)
-AIC(c3lm)
-AIC(c4lm)
-AIC(c5lm)
+
+########################
+#########STEP 5#########
+######DECISION TREE#####
+########################
 
 
 #Decision Tree
-#Classification tree on full data + each cluster
-#ROC curve, misclassification rate
-#Write out doc + preso
-library("tree", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
-#Classification Tree
-#Get rows w/ just rank<=32, cuz tree doesn't accept more.
-tt <- train[train$]                              
-ttrain <- train[,c(2,3,4,5,7,8,10,11,12,13,14)]
+#DT - Train
+ttrain <- as.data.frame(table(train$enc_fin_class))
+ttrain <- as.data.frame(ttrain[with(ttrain, order(-Freq)), ]) ; head(ttrain)
+#Measure Proportion of patients in top 32 providers
+ttrain$proportion <- ttrain$Freq / sum(ttrain$Freq)
+df <- head(ttrain,32); sum(df$proportion);df  #The % of patients in the top 32 providers by size of patients                
+#Use only rows with top 32 providers
+df$Var2 <- as.numeric(df$Var1)
+names(df)[1] <- "enc_fin_class"  
+df2 <- merge(train, df, by.x=c("enc_fin_class"),by.y=c("enc_fin_class"), byall.x=TRUE)                                                     
+ttrain <- df2[,c(1,3,4,6,8,10,11,12,14)]
+ttrain2 <- train[,c(2,3,5,6,7,8,10,11,12,14)]
 
-t.charges <- tree(chargesClustered ~ .-total_charges, data=train)
-summary(tree.charges)
-#variables actually used   
-plot(tree.charges, main = "pretty=0")
-text(tree.charges, pretty=0)
+#DT - Test
+ttest <- as.data.frame(table(test$enc_fin_class))
+ttest <- as.data.frame(ttest[with(ttest, order(-Freq)), ]) ; head(ttest)
+#Measure Proportion of patients in top 32 providers
+ttest$proportion <- ttest$Freq / sum(ttest$Freq)
+df <- head(ttest,32); sum(df$proportion);df  #The % of patients in the top 32 providers by size of patients 
+
+df$Var2 <- as.numeric(df$Var1)
+names(df)[1] <- "enc_fin_class"  
+df2 <- merge(test, df, by.x=c("enc_fin_class"),by.y=c("enc_fin_class"), byall.x=TRUE)                                                     
+ttest <- df2[,c(1,3,4,6,8,10,11,12,14)]
+ttest2 <- test[,c(2,3,5,6,7,8,10,11,12,14)]
 
 
-
+#Cluster Numerical Columns
+#train$age_at_enc: 109 unique to
                               
+#train$sumlos: 137 unique to 
                               
-                              
-                              
-                              
-                              
+#train$encountfreq: 147 unique to 
+fml <- cl ~ .
+t.charges <- rpart(fml, data=ttrain2)
+summary(t.charges)  #show splits
+#Plot   
+plot(t.charges, uniform = TRUE, main = "km 6 DT")
+text(t.charges, use.n=TRUE,all=TRUE, cex = 0.8)                              
+#show results
+printcp(t.charges)
+plotcp(t.charges) #cross-validation results
+#tabulate data
+table(subset(ttrain, encountfreq==12)$race)
+
+#party package
+ct <- ctree(fml, data=ttrain)
+# plot(ct, main = "Conditional Inference Tree")
+table(predict(ct, newdata = test, type = "prob"))
+
+#Estimate test error #CAN"T WORK
+tree.pred <- predict(t.charges, test[,c(2,3,5,7,8,10,11,12)], type = "class")    #ERROR cuz won't calculate
+table(tree.pred, test, type = "class")
 
 
-
-#convert B's to Black/African-American
-train$race[train$race == 'B']<-'Black/African-American'
-head(train)
-#Subset Black race
-Black<-subset(train, race == "Black/African-American")
-head(Black)
-Black65up<-subset(Black, age_at_enc >= 65)
-Black64lower<-subset(Black, age_at_enc < 65)
-head(Black65up)
-tail(Black65up)
-head(Black64lower)
-tail(Black64lower)
-length(Black$patient_id)
-length(unique(Black$patient_id))
-
-#Run a linear regression for Blacks age 65 and up
-black65lmhosp<-lm(total_charges~hospitalizations, data=Black65up)
-summary(black65lm)
-plot(black65lm)
-
-black64lm<-lm(total_charges~hospitalizations, data=Black64lower)
-summary(black64lm)
-plot(black64lm)
-
-
-#Estimate test error
-train <- sample(1:nrow(ch9w32),700000)  #training size
-ch9w32.test <- ch9w32[-train,]     #test data
-ch9.test <- ch9w32$clusters[-train]
-#NOTE: tree takes at MOST 32 categories
-tree.ch9 <- tree(clusters ~ rank, ch9w32, subset=train)
-tree.pred <- predict(tree.ch9, ch9.test, type = "class")    #ERROR cuz won't calculate
-table(tree.pred, ch9.test)
-
-
-
-
+########################
+#########STEP 7#########
+######RANDOM FOREST#####
+########################
+rf.fit <- randomForest(fml, data = ttrain2,
+                       mtry = 10,
+                       ntree= 50,
+                       importance = TRUE,
+                       test = test$cl)
