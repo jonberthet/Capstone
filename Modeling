@@ -264,6 +264,7 @@ a <- as.data.frame(a)
 colnames(a) <- c("intercept", "c2", "c3","c4","c5","c6")
 a <- a[,c(2:6)]
 df2 <- cbind(df,a)
+df2$c1 <- ifelse(df2$chargesClustered == 1,1,0)
 
 train2 <- 1:nrow(train)
 df.test <- df2[-train2,]
@@ -271,6 +272,7 @@ c2 <- df2$c2
 c2.test <-  c2[-train2]
 
 ###DTree#########
+#Predict c2
 t.charges <- rpart(c2 ~ sex + race + marital_status + enc_fin_class + factor(sumlos) + encountfreq + hospitalizations, 
                    data=df2,
                    subset = train2,
@@ -278,6 +280,8 @@ t.charges <- rpart(c2 ~ sex + race + marital_status + enc_fin_class + factor(sum
                    parms = list(split = "information"),   #entropy/deviance used
                    cp = 0)                                #no size penalty
 summary(t.charges)  #show splits
+
+#Predict on Test set
 t.pred <- predict(t.charges, df.test, type = "class")
 table(t.pred, c2.test)
 misclassificationRate <- (1433+878) / 15970; misclassificationRate
@@ -286,43 +290,52 @@ correct = 1-misclassificationRate; correct
 
 #Plot   
 plot(t.charges, uniform = TRUE, compress = TRUE, margin=0.0001, main = "km 6 DT")
-text(t.charges, use.n=TRUE,all=TRUE, cex = 0.8)                              
+text(t.charges, use.n=TRUE,all=TRUE, fancy = TRUE, cex = 0.8)                              
 #show results
 result <- printcp(t.charges)
-plotcp(t.charges) #cross-validation results
+plotcp(t.charges, col = 2, upper = "size", cex=.1) #cross-validation results
+print(t.charges)    #show tree 
 #Tree with lowest xerror with 0.7686 is a tree with nsplit = 48 length
+#However, 2nd lowest xerror has 0.76953 is nsplit=30. Let's try that! (cp = 1.365498e-03 )
 
-newwindow()
-colors <- apply(matrix())
+#Prune
+df2.prune <- prune(t.charges, cp = 1.365498e-03)
+#Predict on Test set
+t.pred <- predict(df2.prune, df.test, type = "class")
+table(t.pred, c2.test)
+misclassificationRate <- (1370+791) / 15970; misclassificationRate
+correct = 1-misclassificationRate; correct
+#Improvement of 0.009 by pruning for c2!!!
 
-#Consider pruning the tree to get improved results
-cv.charges <- cv.tree(t.charges, FUN=prune.misclass)
+plot(df2.prune, uniform = TRUE, compress = TRUE, margin=0.0001, main = "km 6 DT")
+text(df2.prune, use.n=TRUE,all=TRUE, fancy = TRUE, cex = 0.8)      
 
-
-
-
-
-
-
-
-
-
-#party package
-ct <- ctree(fml, data=ttrain)
-# plot(ct, main = "Conditional Inference Tree")
-table(predict(ct, newdata = test, type = "prob"))
-
-#Estimate test error #CAN"T WORK
-# tree.pred <- predict(t.charges, test[,c(2,3,5,7,8,10,11,12)], type = "class")    #ERROR cuz won't calculate
-# table(tree.pred, test, type = "class")
 
 
 ########################
 #########STEP 7#########
 ######RANDOM FOREST#####
 ########################
-rf.fit <- randomForest(fml, data = ttrain2,
-                       mtry = 10,
+fml <- c2 ~ sex + factor(race) + factor(marital_status) + factor(enc_fin_class) + sumlos + encountfreq + hospitalizations 
+fml <- c2 ~ sex + race + marital_status + enc_fin_class + sumlos + encountfreq + hospitalizations 
+fml <- c2 ~ sex + race + marital_status 
+
+rf.fit <- randomForest(fml, 
+                       data=df2,
+                       subset = train2,
+                       mtry = 3,        #Consider 3 predictors
                        ntree= 50,
-                       importance = TRUE,
-                       test = test$cl)
+                       importance = TRUE)
+
+#Bagging
+yhat.bag <- predict(rf.fit, newdata = df.test)
+c2.test <- df2[-train, "c2"]
+plot(yhat.bag, df.test)
+
+importance(rf.fit)
+varImpPlot(rf.fit)
+
+
+#1. tree on each c1-c6
+#2. cluster each variable to 10 clusters for rf
+#3. produce variable importance for each cluster
