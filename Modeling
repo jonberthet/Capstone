@@ -68,7 +68,7 @@ patfinutil$los<-NULL
 #NON-TRANSFORMED
 trainmatrix<- data.matrix(patfinutil)
 km.charges <- kmeans(data.matrix(patfinutil[,13]), 6, nstart=50)
-plot(data.matrix(trainmatrix[,13]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
+# plot(data.matrix(trainmatrix[,13]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
 km.charges$centers
 #NOTE: cluster #s change after each run, so double check!
 #Bind cluster categories w/ 'charges' table
@@ -85,7 +85,7 @@ df$total_charges2 <- replace(y,y=="-Inf",0)#remove -inf
 lm.data.nozero <- subset(df, total_charges > 0) #remove 0's 
 trainmatrix<-data.matrix(lm.data.nozero)
 km.charges <- kmeans(data.matrix(lm.data.nozero[,13]), 6, nstart=50)
-plot(data.matrix(trainmatrix[,13]), col = (km.charges$cluster+1), main = "Transformed W/out 0, k=6", pch=20, cex=1)
+# plot(data.matrix(trainmatrix[,13]), col = (km.charges$cluster+1), main = "Transformed W/out 0, k=6", pch=20, cex=1)
 km.charges$centers
 #NOTE: cluster #s change after each run, so double check!
 #Bind cluster categories w/ 'charges' table
@@ -95,11 +95,12 @@ finalData.trans.without0 <- cbind(lm.data.nozero, chargesClustered = km.charges$
 lm.data.withzero <- df 
 trainmatrix<-data.matrix(lm.data.withzero)
 km.charges <- kmeans(data.matrix(lm.data.withzero[,13]), 6, nstart=50)
-plot(data.matrix(trainmatrix[,13]), col = (km.charges$cluster+1), main = "Transformed W/ 0, k=6", pch=20, cex=1)
+# plot(data.matrix(trainmatrix[,13]), col = (km.charges$cluster+1), main = "Transformed W/ 0, k=6", pch=20, cex=1)
 km.charges$centers
 #NOTE: cluster #s change after each run, so double check!
 #Bind cluster categories w/ 'charges' table
 finalData.trans.with0 <- cbind(lm.data.withzero, chargesClustered = km.charges$cluster) 
+
 
 ############
 #FINAL DATA:
@@ -239,26 +240,15 @@ AIC(fulllmencount)
 AIC(fulllmhosplosencount)
 AIC(c5lm);AIC(c1lm);AIC(c2lm);AIC(c3lm);AIC(c4lm)
 
-
-
-
 ########################
 #########STEP 5#########
 ######DECISION TREE#####
 ########################
 
-#Decision Tree
-
-#Cluster Numerical Columns
-#train$age_at_enc: 109 unique to
-
-#train$sumlos: 137 unique to 
-
-#train$encountfreq: 147 unique to 
-
 #Data for model
 df <- rbind(train, test)
 
+#Create df for Decision Tree
 a <- model.matrix(race ~ as.factor(chargesClustered), df)
 a <- as.data.frame(a)
 colnames(a) <- c("intercept", "c2", "c3","c4","c5","c6")
@@ -266,14 +256,45 @@ a <- a[,c(2:6)]
 df2 <- cbind(df,a)
 df2$c1 <- ifelse(df2$chargesClustered == 1,1,0)
 
+#Cluster Numerical Columns
+#train$age_at_enc: 109 unique to 20
+trainmatrix<- data.matrix(df2)
+km.charges <- kmeans(data.matrix(df2$age_at_enc), 20, nstart=50)
+# plot(data.matrix(trainmatrix[,7]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
+#NOTE: cluster #s change after each run, so double check!
+#Bind cluster categories w/ 'df2' table
+df2 <- cbind(df2, ageClustered = km.charges$cluster)     
+
+#train$sumlos: 137 unique to 20
+trainmatrix<- data.matrix(df2)
+km.charges <- kmeans(data.matrix(df2$sumlos), 20, nstart=50)
+# plot(data.matrix(trainmatrix[,10]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
+#Bind cluster categories w/ 'df2' table
+df2 <- cbind(df2, sumlosClustered = km.charges$cluster)     
+
+#train$encountfreq: 147 unique to 20
+trainmatrix<- data.matrix(df2)
+km.charges <- kmeans(data.matrix(df2$encountfreq), 20, nstart=50)
+# plot(data.matrix(trainmatrix[,11]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
+#Bind cluster categories w/ 'df2' table
+df2 <- cbind(df2, encountfreqClustered = km.charges$cluster)
+
+#####CHOOSE CLUSTER TEST######
 train2 <- 1:nrow(train)
 df.test <- df2[-train2,]
-c2 <- df2$c2
-c2.test <-  c2[-train2]
+c1 <- df2$c1;c2 <- df2$c2;c3 <- df2$c3;c4 <- df2$c4;c5 <- df2$c5;c6 <- df2$c6;
+######################
+#CHOOSE....WISELY...
+cluster <- c1 ; cluster.test <-  c1[-train2]
+# cluster <- c2 ; cluster.test <-  c2[-train2]
+# cluster <- c3 ; cluster.test <-  c3[-train2]
+# cluster <- c4 ; cluster.test <-  c4[-train2]
+# cluster <- c5 ; cluster.test <-  c5[-train2]
+# cluster <- c6 ; cluster.test <-  c6[-train2]
+#################
 
-###DTree#########
-#Predict c2
-t.charges <- rpart(c2 ~ sex + race + marital_status + enc_fin_class + factor(sumlos) + encountfreq + hospitalizations, 
+######DTree#########
+t.charges <- rpart(cluster ~ sex + race + marital_status + enc_fin_class + factor(sumlos) + encountfreq + hospitalizations, 
                    data=df2,
                    subset = train2,
                    method = "class",                      #classification used
@@ -283,8 +304,8 @@ summary(t.charges)  #show splits
 
 #Predict on Test set
 t.pred <- predict(t.charges, df.test, type = "class")
-table(t.pred, c2.test)
-misclassificationRate <- (1433+878) / 15970; misclassificationRate
+table(t.pred, cluster.test)
+misclassificationRate <- (105+304) / 15970; misclassificationRate
 correct = 1-misclassificationRate; correct
 #I get correct predictions 85.5% of the time
 
@@ -302,7 +323,7 @@ print(t.charges)    #show tree
 df2.prune <- prune(t.charges, cp = 1.365498e-03)
 #Predict on Test set
 t.pred <- predict(df2.prune, df.test, type = "class")
-table(t.pred, c2.test)
+table(t.pred, cluster.test)
 misclassificationRate <- (1370+791) / 15970; misclassificationRate
 correct = 1-misclassificationRate; correct
 #Improvement of 0.009 by pruning for c2!!!
@@ -316,11 +337,9 @@ text(df2.prune, use.n=TRUE,all=TRUE, fancy = TRUE, cex = 0.8)
 #########STEP 7#########
 ######RANDOM FOREST#####
 ########################
-fml <- c2 ~ sex + factor(race) + factor(marital_status) + factor(enc_fin_class) + sumlos + encountfreq + hospitalizations 
-fml <- c2 ~ sex + race + marital_status + enc_fin_class + sumlos + encountfreq + hospitalizations 
-fml <- c2 ~ sex + race + marital_status 
+fml <- factor(cluster) ~ sex + race + marital_status + ageClustered + sumlosClustered + encountfreqClustered
 
-rf.fit <- randomForest(fml, 
+rf.fit2 <- randomForest(fml, 
                        data=df2,
                        subset = train2,
                        mtry = 3,        #Consider 3 predictors
@@ -328,11 +347,11 @@ rf.fit <- randomForest(fml,
                        importance = TRUE)
 
 #Bagging
-yhat.bag <- predict(rf.fit, newdata = df.test)
-c2.test <- df2[-train, "c2"]
+yhat.bag <- predict(rf.fit2, newdata = df.test)
+cluster.test <- df2[-train, "cluster"]
 plot(yhat.bag, df.test)
 
-importance(rf.fit)
+importance(rf.fit2)
 varImpPlot(rf.fit)
 
 
