@@ -1,0 +1,450 @@
+load("/project/msca/capstone3/all_tables_appended.RData")
+
+library(lubridate)
+library(sqldf)
+library("dplyr", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
+library("plyr", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
+library("rpart", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")#Classification Tree
+library("randomForest", lib.loc="/home/kjtong/R/x86_64-unknown-linux-gnu-library/3.2")
+library("ggplot2", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
+
+########################
+#########STEP 1#########
+###VARIABLE CREATION####
+########################
+
+#Add 'duration' variable
+pef3<- patEncFin
+pef3$arrival <- ymd_hms(pef3$adm_date_offset)
+pef3$departure <- ymd_hms(pef3$disch_date_offset)
+pef3$duration <- seconds_to_period(pef3[,10] - pef3[,9])
+pef3$los<- day(pef3$duration)#length of stay in days
+pef3 <- subset(pef3, !is.na(los)) #remove all NA's because some of the patients are inpatients and some had no hospitalizations, but their date of discharge was still NA 
+
+#Add 'age' to patfin table
+join_patfinage <- merge(patfin,pef3,
+                        by.x=c("patient_id"),by.y=c("patient_id"),
+                        byall.y=TRUE)
+join_patfinage$adm_date_offset<-NULL
+join_patfinage$disch_date_offset<-NULL
+# join_patfinage$enc_eio<-NULL
+# join_patfinage$discharge_dispo<-NULL
+# join_patfinage$departure<-NULL
+# join_patfinage$duration<-NULL
+
+########################
+#########STEP 2#########
+######TEST / TRAIN######
+########################
+data <- join_patfinage
+
+#Train = All '12 + Q1,Q2 '13 + 50% of random('13Q3 - '14Q2)
+#Test = All '15 + Q3,Q4 '14 + 50% of random('12Q3 - '13Q2)
+# 50% split
+split1 <- data[ which(data$arrival > "2013-07-01" & data$arrival <= "2014-06-30"),]
+ssize <- floor(0.5*nrow(split1))
+train_ind <- sample(seq_len(nrow(split1)), size= ssize)
+# hist(data$arrival, breaks = 100)  #Distribution of time
+
+train1 <- data[data$arrival <= "2013-01-01",]
+train2 <- data[ which(data$arrival > "2013-01-01" & data$arrival <= "2013-07-01"),]
+train3 <- split1[train_ind,]
+train <- rbind(train1, train2, train3)
+train$where <- 1
+
+#Test
+test1 <- data[data$arrival > "2015-01-01",]
+test2 <- data[ which(data$arrival > "2014-06-30" & data$arrival <= "2015-01-01"),]
+test3 <- split1[-train_ind,]
+test <-  rbind(test1, test2, test3)
+test$where <- 0
+
+# #Test/Train based on mean arrival
+# train.mean <- data[data$arrival >= mean(data$arrival),]
+# test.mean <- data[data$arrival < mean(data$arrival),]
+# 
+# #Test/Train based on median arrival
+# train.median <- data[data$arrival >= median(data$arrival),]
+# test.median <- data[data$arrival < median(data$arrival),]
+
+
+######################################
+######################################
+##########STEP 3######################
+##POST TRAIN/TEST VARIABLE CREATION###
+######################################
+######################################
+
+#Train
+#Add sum LOS + Encounter Freq
+sumlos <- ddply(train,.(patient_id),summarise,sumlos=sum(los))  #sum of LOS across encounters
+train$encounter_id2 <- 1
+encountfreq<-ddply(train,.(patient_id),summarise,encountfreq=sum(encounter_id2))#find sum of length of stays across encounters
+
+losjoin <- merge(train,
+                 sumlos,
+                 by.x=c("patient_id"),by.y=c("patient_id"), 
+                 byall.x=TRUE)
+
+encountjoin<- merge(losjoin,
+                    encountfreq,
+                    by.x=c("patient_id"),by.y=c("patient_id"),
+                    byall.x=TRUE)
+
+
+# load("/project/msca/capstone3/all_tables.RData")
+# write.table(GrahamOut3,file="/project/msca/capstone3/GrahamOut3.txt",sep="|",quote=F)
+GrahamOut <- read.delim("/project/msca/capstone3/GrahamOut.txt", sep = "|", header=TRUE)   #, fileEncoding = "UCS-2LE"
+#Add # of hospitilizations + total patient costs. 
+# GrahamOut3 <- GrahamOut2[-(grep('NULL',GrahamOut2$patient_id)),]
+# names(GrahamOut3)[1] <- "patient_id"
+# names(GrahamOut3)[2] <- "encounter_id"
+
+enc_charges <- merge(patEncFin,
+                     GrahamOut,
+                     by.x=c("patient_id","encounter_id"),
+                     by.y=c("patient_id","encounter_id"),
+                     all=TRUE)
+
+enc_charges2 <- merge(encountjoin,
+                     enc_charges,
+                     by.x=c("patient_id","encounter_id"),
+                     by.y=c("patient_id","encounter_id"),
+                     byall.x=TRUE)
+
+
+# > summary(train$arrival)
+# Min.               1st Qu.                Median                  Mean 
+# "2012-01-04 00:00:00" "2012-11-06 00:00:00" "2013-03-26 00:00:00" "2013-04-13 00:31:52" 
+# 3rd Qu.                  Max. 
+# "2013-09-20 00:00:00" "2014-06-30 00:00:00" 
+
+#number of hospitalizations per patient, plus cost. #465,682 rows!
+enc_charges2$inpatient <- 0
+enc_charges2$inpatient[which(enc_charges2$enc_eio=="E, I,")] <- 1
+enc_charges2$inpatient[which(enc_charges2$enc_eio=="I,")] <- 1
+enc_charges2$inpatient[which(enc_charges2$enc_eio=="I, O,")] <- 1
+charges.na <- as.numeric(enc_charges2$Charges)
+enc_charges2$Charges <- as.numeric(enc_charges2$Charges)
+# enc_charges2 <- enc_charges[-which(is.na(charges.na)),]  #Took out cuz no na's
+patient_util <- ddply(enc_charges2,
+                      "patient_id",
+                      summarise,
+                      hospitalizations=sum(inpatient),
+                      total_charges=sum(Charges))
+
+##LEFT OFF: CHECK TO SEE IF TABLES SUM UP CORRECTLY. SO FAR, enc_charges is good.
+
+
+patfinutil0.5 <- merge(patient_util,
+                     enc_charges,
+                     by.x=c("patient_id"),
+                     by.y=c("patient_id"),
+                     byall.y=TRUE)
+
+patfinutil <- merge(encountjoin, 
+                    patfinutil0.5,
+                    by.x=c("patient_id"),by.y=c("patient_id"),
+                    byall.y=TRUE)
+
+patfinutil<-patfinutil %>% distinct #remove duplicate rows
+length(patfinutil$patient_id)
+length(unique(patfinutil$patient_id))
+patfinutil<-patfinutil[!duplicated(paste(patfinutil[,1])),] #remove all duplicated patient ID's
+# patfinutil$encounter_id<-NULL
+# patfinutil$los<-NULL
+
+
+
+########################
+#########STEP 4#########
+#########CLUSTER########
+########################
+set.seed(10)
+#cluster charges
+#NON-TRANSFORMED
+# trainmatrix<- data.matrix(patfinutil)
+# km.charges <- kmeans(data.matrix(patfinutil[,13]), 6, nstart=50)
+# # plot(data.matrix(trainmatrix[,13]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
+# km.charges$centers
+# #NOTE: cluster #s change after each run, so double check!
+# #Bind cluster categories w/ 'charges' table
+# finalData.untrans <- cbind(patfinutil, chargesClustered = km.charges$cluster)                                              
+
+#TRANSFORMED
+#cluster charges on Transformed data, K=6
+#transform train for linear models
+df <- patfinutil
+y=log(df$total_charges)#transform y to normal distribution
+df$total_charges2 <- replace(y,y=="-Inf",0)#remove -inf
+
+#WITHOUT 0 - lm models
+lm.data.nozero <- subset(df, total_charges > 0) #remove 0's 
+trainmatrix<-data.matrix(lm.data.nozero)
+km.charges <- kmeans(data.matrix(lm.data.nozero[,14]), 6, nstart=50)
+# plot(data.matrix(trainmatrix[,13]), col = (km.charges$cluster+1), main = "Transformed W/out 0, k=6", pch=20, cex=1)
+km.charges$centers
+#NOTE: cluster #s change after each run, so double check!
+#Bind cluster categories w/ 'charges' table
+finalData.trans.without0 <- cbind(lm.data.nozero, chargesClustered = km.charges$cluster)                                              
+
+# #WITH 0 - non lm models
+# lm.data.withzero <- df 
+# trainmatrix<-data.matrix(lm.data.withzero)
+# km.charges <- kmeans(data.matrix(lm.data.withzero[,14]), 6, nstart=50)
+# # plot(data.matrix(trainmatrix[,13]), col = (km.charges$cluster+1), main = "Transformed W/ 0, k=6", pch=20, cex=1)
+# km.charges$centers
+# #NOTE: cluster #s change after each run, so double check!
+# #Bind cluster categories w/ 'charges' table
+# finalData.trans.with0 <- cbind(lm.data.withzero, chargesClustered = km.charges$cluster)
+
+############
+#FINAL DATA:
+# data <- finalData.untrans
+data <- finalData.trans.without0    #lm
+# data <- finalData.trans.with0     #non-lm
+############
+
+#Create Charge Cluster data
+c1 <- data[data$chargesClustered == 1,]
+c2 <- data[data$chargesClustered == 2,]
+c3 <- data[data$chargesClustered == 3,]
+c4 <- data[data$chargesClustered == 4,]
+c5 <- data[data$chargesClustered == 5,]
+c6 <- data[data$chargesClustered == 6,]
+
+#Summary of clusters
+summary(c1)[,3];
+summary(c2)[,3];
+summary(c3)[,3];
+summary(c4)[,3];
+summary(c5)[,3];
+summary(c6)[,3]
+nrow(c1); nrow(c2);nrow(c3);nrow(c4);nrow(c5)
+#mean charge by race by cluster
+ddply(c6, .(sex), summarise, mean_charge=mean(total_charges))
+
+
+########################
+#########STEP 5#########
+######LINEAR REG########
+########################
+
+#Full population
+hist(train$total_charges2)
+
+#lm Hospitalizations
+fulllmhosp<-lm(total_charges2 ~ hospitalizations, data=train)
+summary(fulllmhosp)
+# plot(fulllmhosp)
+fulllmhosp.MSE <- mean((fulllmhosp$fitted.values - train$total_charges2)^2)
+
+#Sum LOS
+fulllmlos<-lm(total_charges2~sumlos, data=train)
+summary(fulllmlos)
+# plot(fulllmlos)
+fulllmlos.MSE <- mean((fulllmlos$fitted.values - train$total_charges2)^2)
+
+#EncountFreq
+fulllmencount<-lm(total_charges2~encountfreq, data=train)
+summary(fulllmencount)
+# plot(fulllmencount)
+fulllmencount.MSE <- mean((fulllmencount$fitted.values - train$total_charges2)^2)
+
+#Total
+fulllmhosplosencount<-lm(total_charges2 ~ hospitalizations+sumlos+encountfreq, data=train)
+summary(fulllmhosplosencount)
+anova(fulllmhosplosencount)
+# plot(fulllmhosplosencount)
+fulllmhosplosencount.MSE <- mean((fulllmhosplosencount$fitted.values - train$total_charges2)^2)
+
+predictfull<-predict(fulllmhosplosencount,newdata=test)
+summary(predictfull)
+fulllmhosplosencounttest.MSE <- mean((predictfull - test$total_charges2)^2)
+plot(predictfull)
+hist(predictfull)
+
+#The transformed model with all 3 predictors performs best, hospitalizations is best predictor
+
+
+#Regressions for each cluster
+c1lm<-lm(total_charges2~hospitalizations+sumlos+encountfreq, data=c1)
+summary(c1lm)
+c1.MSE <- mean((c1lm$fitted.values - c1$total_charges2)^2)
+
+c2lm<-lm(total_charges2~hospitalizations+sumlos+encountfreq, data=c2)
+summary(c2lm)
+c2.MSE <- mean((c2lm$fitted.values - c2$total_charges2)^2)
+
+c3lm<-lm(total_charges2~hospitalizations+sumlos+encountfreq, data=c3)
+summary(c3lm)
+c3.MSE <- mean((c3lm$fitted.values - c3$total_charges2)^2)
+
+c4lm<-lm(total_charges2~hospitalizations+sumlos+encountfreq, data=c4)
+summary(c4lm)
+c4.MSE <- mean((c4lm$fitted.values - c4$total_charges2)^2)
+
+c5lm<-lm(total_charges2~hospitalizations+sumlos+encountfreq, data=c5)
+summary(c5lm)
+c5.MSE <- mean((c5lm$fitted.values - c5$total_charges2)^2)
+
+c6lm<-lm(total_charges2~hospitalizations+sumlos+encountfreq, data=c6)
+summary(c6lm)
+c6.MSE <- mean((c6lm$fitted.values - c6$total_charges2)^2)
+
+
+
+
+###COMPARATIVE STATS
+#MSE
+fulllmhosp.MSE
+fulllmlos.MSE
+fulllmencount.MSE
+fulllmhosplosencount.MSE
+c1.MSE;c2.MSE;c3.MSE;c4.MSE;c5.MSE;c6.MSE
+
+#AIC
+AIC(fulllmhosp)
+AIC(fulllmlos)
+AIC(fulllmencount)
+AIC(fulllmhosplosencount)
+AIC(c1lm);AIC(c2lm);AIC(c3lm);AIC(c4lm);AIC(c5lm);AIC(c6lm)
+
+
+
+########################
+#########STEP 6#########
+######DECISION TREE#####
+########################
+
+#Data for model
+df <- rbind(train, test)
+
+#Create df for Decision Tree
+a <- model.matrix(race ~ as.factor(chargesClustered), df)
+a <- as.data.frame(a)
+colnames(a) <- c("intercept", "c2", "c3","c4","c5","c6")
+a <- a[,c(2:6)]
+df2 <- cbind(df,a)
+df2$c1 <- ifelse(df2$chargesClustered == 1,1,0)
+
+#Cluster Numerical Columns
+#train$age_at_enc: 109 unique to 20
+trainmatrix<- data.matrix(df2)
+km.age <- kmeans(data.matrix(df2$age_at_enc), 20, nstart=50)
+# plot(data.matrix(trainmatrix[,7]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
+#NOTE: cluster #s change after each run, so double check!
+#Bind cluster categories w/ 'df2' table
+df2 <- cbind(df2, ageClustered = km.age$cluster)     
+
+#train$sumlos: 137 unique to 20
+trainmatrix<- data.matrix(df2)
+km.sumlos <- kmeans(data.matrix(df2$sumlos), 20, nstart=50)
+# plot(data.matrix(trainmatrix[,10]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
+#Bind cluster categories w/ 'df2' table
+df2 <- cbind(df2, sumlosClustered = km.sumlos$cluster)     
+
+#train$encountfreq: 147 unique to 20
+trainmatrix<- data.matrix(df2)
+km.encountfreq <- kmeans(data.matrix(df2$encountfreq), 20, nstart=50)
+# plot(data.matrix(trainmatrix[,11]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
+#Bind cluster categories w/ 'df2' table
+df2 <- cbind(df2, encountfreqClustered = km.encountfreq$cluster)
+
+#####CHOOSE CLUSTER TEST######
+train2 <- 1:nrow(train)
+df.test <- df2[-train2,]
+c1 <- df2$c1;c2 <- df2$c2;c3 <- df2$c3;c4 <- df2$c4;c5 <- df2$c5;c6 <- df2$c6;
+######################
+#CHOOSE....WISELY...
+# cluster <- c1 ; cluster.test <-  c1[-train2]
+# cluster <- c2 ; cluster.test <-  c2[-train2]
+# cluster <- c3 ; cluster.test <-  c3[-train2]
+# cluster <- c4 ; cluster.test <-  c4[-train2]
+cluster <- c5 ; cluster.test <-  c5[-train2]
+# cluster <- c6 ; cluster.test <-  c6[-train2]
+#################
+
+######DTree#########
+t.charges <- rpart(cluster ~ sex + race + marital_status + enc_fin_class + factor(sumlos) + encountfreq + hospitalizations, 
+                   data=df2,
+                   subset = train2,
+                   method = "class",                      #classification used
+                   parms = list(split = "information"),   #entropy/deviance used
+                   cp = 0)                                #no size penalty
+# summary(t.charges)  #show splits
+
+#Predict on Test set
+t.pred <- predict(t.charges, df.test, type = "class")
+table(t.pred, cluster.test)
+misclassificationRate <- (1045+2915) / 15970; misclassificationRate
+correct = 1-misclassificationRate; correct
+
+#Plot   
+# plot(t.charges, uniform = TRUE, compress = TRUE, margin=0.0001, main = "km 6 DT")
+# text(t.charges, use.n=TRUE,all=TRUE, fancy = TRUE, cex = 0.8)                              
+#show results
+result <- printcp(t.charges)
+min(result[,4])   #get CP from lowest xerror
+plotcp(t.charges, col = 2, upper = "size", cex=.1) #cross-validation results
+# print(t.charges)    #show tree 
+#Tree with lowest xerror with 0.7686 is a tree with nsplit = 48 length
+#However, 2nd lowest xerror has 0.76953 is nsplit=30. Let's try that! (cp = 1.365498e-03 )
+
+#Prune
+df2.prune <- prune(t.charges, cp = 5.2390e-04)
+#Predict on Test set
+t.pred <- predict(df2.prune, df.test, type = "class")
+table(t.pred, cluster.test)
+misclassificationRate <- (881+2980) / 15970; misclassificationRate
+correct = 1-misclassificationRate; correct
+
+plot(df2.prune, uniform = TRUE, compress = TRUE, margin=0.0001, main = "km 6 DT")
+text(df2.prune, use.n=TRUE,all=TRUE, fancy = TRUE, cex = 0.8)      
+
+
+
+########################
+#########STEP 7#########
+######RANDOM FOREST#####
+########################
+
+#Conduct Bagging, which is rf with m = p
+
+set.seed(10)
+fml <- factor(cluster) ~ sex + race + marital_status + ageClustered + sumlosClustered + encountfreqClustered
+
+bag.df2 <- randomForest(fml, 
+                       data=df2,
+                       subset = train2,
+                       mtry = 3,        #Consider all predictors
+                       ntree= 50,
+                       importance = TRUE)
+bag.df2
+
+#Boosting
+# yhat.bag <- predict(bag.df2, newdata = df.test, type = "class")
+# df2.test <- df2[-train]
+# 
+# par(mfrow=c(1,1))
+# plot(yhat.bag, cluster.test)
+# abline(0,1)
+# mean((yhat.bag - cluster.test)^2)
+
+# importance(bag.df2)
+varImpPlot(bag.df2, main = "c6")
+
+
+
+####
+# Risk Analysis
+#column w/ integer entry times. Must have each patient timed.
+library("ggplot2")
+pf <- patfinutilf
+pf <- pf[,c(1,2,3,5,7,8:17)]
+pf2 <- pf[with(pf,order(patient_id, encounter_id)),]
+pf3 <- 
+p3org2 <- p3org[20,]
+
+patfinutil
+qplot()
