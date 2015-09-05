@@ -137,6 +137,8 @@ trainData <- patfinutil
 #training period. That way, we have all encounters, their time,
 #the 'charge' per training encounter and 'total_charges' variable.
 
+
+
 #Test
 #Add sum LOS + Encounter Freq
 sumlos <- ddply(test,.(patient_id),summarise,sumlos=sum(los))  #sum of LOS across encounters
@@ -161,13 +163,11 @@ enc_charges <- merge(encountjoin,
                      charges_all_noduplicates,
                      by.x=c("patient_id","encounter_id"),
                      all.x=TRUE)
-#Since there's more charges listed than encountjoin info, NAs,
-# and due to mismatch of patient_ids and encounter_ids, 
-# I get much lower # of 263,298
+
 enc_charges2 <- enc_charges[complete.cases(enc_charges),]
 enc_charges <- enc_charges2
 
-#number of hospitalizations per patient, plus cost. #465,682 rows!
+#number of hospitalizations per patient, plus cost.
 enc_charges$inpatient <- 0
 enc_charges$inpatient[which(enc_charges$enc_eio=="E, I,")] <- 1
 enc_charges$inpatient[which(enc_charges$enc_eio=="I,")] <- 1
