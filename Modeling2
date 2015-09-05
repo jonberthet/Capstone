@@ -41,6 +41,7 @@ data <- join_patfinage
 #Train = All '12 + Q1,Q2 '13 + 50% of random('13Q3 - '14Q2)
 #Test = All '15 + Q3,Q4 '14 + 50% of random('12Q3 - '13Q2)
 # 50% split
+set.seed(10)
 split1 <- data[ which(data$arrival > "2013-07-01" & data$arrival <= "2014-06-30"),]
 ssize <- floor(0.5*nrow(split1))
 train_ind <- sample(seq_len(nrow(split1)), size= ssize)
@@ -91,70 +92,59 @@ encountjoin<- merge(losjoin,
                     by.x=c("patient_id"),by.y=c("patient_id"),
                     byall.x=TRUE)
 
+# #Add # of hospitilizations + total patient costs. 
 
-# load("/project/msca/capstone3/all_tables.RData")
-# write.table(GrahamOut3,file="/project/msca/capstone3/GrahamOut3.txt",sep="|",quote=F)
-GrahamOut <- read.delim("/project/msca/capstone3/GrahamOut.txt", sep = "|", header=TRUE)   #, fileEncoding = "UCS-2LE"
-#Add # of hospitilizations + total patient costs. 
-# GrahamOut3 <- GrahamOut2[-(grep('NULL',GrahamOut2$patient_id)),]
-# names(GrahamOut3)[1] <- "patient_id"
-# names(GrahamOut3)[2] <- "encounter_id"
-
-enc_charges <- merge(patEncFin,
-                     GrahamOut,
+#Charges_all has all inaptient and outpatient encounters
+charges_all_noduplicates <- subset(charges_all, !duplicated(charges_all[,2]))
+enc_charges <- merge(encountjoin,
+                     charges_all_noduplicates,
                      by.x=c("patient_id","encounter_id"),
-                     by.y=c("patient_id","encounter_id"),
-                     all=TRUE)
+                     all.x=TRUE)
+#Since there's more charges listed than encountjoin info, NAs, 
+# and due to mismatch of patient_ids and encounter_ids, 
+# I get much lower # of 263,298
+enc_charges2 <- enc_charges[complete.cases(enc_charges),]
+enc_charges <- enc_charges2
 
-enc_charges2 <- merge(encountjoin,
-                     enc_charges,
-                     by.x=c("patient_id","encounter_id"),
-                     by.y=c("patient_id","encounter_id"),
-                     byall.x=TRUE)
 
 
 # > summary(train$arrival)
-# Min.               1st Qu.                Median                  Mean 
-# "2012-01-04 00:00:00" "2012-11-06 00:00:00" "2013-03-26 00:00:00" "2013-04-13 00:31:52" 
+# Min.               1st Qu. 
+# "2012-01-04 00:00:00" "2012-11-06 00:00:00" 
+# Median                  Mean 
+# "2013-03-26 00:00:00" "2013-04-13 04:43:29"  
 # 3rd Qu.                  Max. 
-# "2013-09-20 00:00:00" "2014-06-30 00:00:00" 
-
+# "2013-09-21 00:00:00" "2014-06-30 00:00:00" 
 #number of hospitalizations per patient, plus cost. #465,682 rows!
-enc_charges2$inpatient <- 0
-enc_charges2$inpatient[which(enc_charges2$enc_eio=="E, I,")] <- 1
-enc_charges2$inpatient[which(enc_charges2$enc_eio=="I,")] <- 1
-enc_charges2$inpatient[which(enc_charges2$enc_eio=="I, O,")] <- 1
-charges.na <- as.numeric(enc_charges2$Charges)
-enc_charges2$Charges <- as.numeric(enc_charges2$Charges)
-# enc_charges2 <- enc_charges[-which(is.na(charges.na)),]  #Took out cuz no na's
-patient_util <- ddply(enc_charges2,
+enc_charges$inpatient <- 0
+enc_charges$inpatient[which(enc_charges$enc_eio=="E, I,")] <- 1
+enc_charges$inpatient[which(enc_charges$enc_eio=="I,")] <- 1
+enc_charges$inpatient[which(enc_charges$enc_eio=="I, O,")] <- 1
+charges.na <- as.numeric(enc_charges$Charges)
+enc_charges$Charges <- as.numeric(enc_charges$Charges)
+#remove rows w/ enc_charges$Charges = NA. Now have 263,294 rows
+enc_charges <- enc_charges[complete.cases(enc_charges[,20]),]
+#For data transformation, add $1 to all Charges
+enc_charges$Charges <- enc_charges$Charges + 1
+
+patient_util <- ddply(enc_charges,
                       "patient_id",
                       summarise,
                       hospitalizations=sum(inpatient),
                       total_charges=sum(Charges))
 
-##LEFT OFF: CHECK TO SEE IF TABLES SUM UP CORRECTLY. SO FAR, enc_charges is good.
-
-
-patfinutil0.5 <- merge(patient_util,
+patfinutil <- merge(patient_util,
                      enc_charges,
                      by.x=c("patient_id"),
                      by.y=c("patient_id"),
                      byall.y=TRUE)
 
-patfinutil <- merge(encountjoin, 
-                    patfinutil0.5,
-                    by.x=c("patient_id"),by.y=c("patient_id"),
-                    byall.y=TRUE)
-
-patfinutil<-patfinutil %>% distinct #remove duplicate rows
-length(patfinutil$patient_id)
-length(unique(patfinutil$patient_id))
-patfinutil<-patfinutil[!duplicated(paste(patfinutil[,1])),] #remove all duplicated patient ID's
-# patfinutil$encounter_id<-NULL
-# patfinutil$los<-NULL
-
-
+trainData <- patfinutil
+#There's no duplicates  & no NAs   :)
+#NOTE: Data is organized so that every encounter is listed, 
+#but total_charges is based off all total charges of the 
+#training period. That way, we have all encounters, their time,
+#the 'charge' per training encounter and 'total_charges' variable.
 
 ########################
 #########STEP 4#########
@@ -172,11 +162,10 @@ set.seed(10)
 # finalData.untrans <- cbind(patfinutil, chargesClustered = km.charges$cluster)                                              
 
 #TRANSFORMED
-#cluster charges on Transformed data, K=6
+#Add $1 to every 
 #transform train for linear models
-df <- patfinutil
-y=log(df$total_charges)#transform y to normal distribution
-df$total_charges2 <- replace(y,y=="-Inf",0)#remove -inf
+y=log(trainData$total_charges)#transform y to normal 
+trainData$total_charges2 <- replace(y,y=="-Inf",0)#remove -inf
 
 #WITHOUT 0 - lm models
 lm.data.nozero <- subset(df, total_charges > 0) #remove 0's 
