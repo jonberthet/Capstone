@@ -100,21 +100,12 @@ enc_charges <- merge(encountjoin,
                      charges_all_noduplicates,
                      by.x=c("patient_id","encounter_id"),
                      all.x=TRUE)
-#Since there's more charges listed than encountjoin info, NAs, 
+#Since there's more charges listed than encountjoin info, NAs,
 # and due to mismatch of patient_ids and encounter_ids, 
 # I get much lower # of 263,298
 enc_charges2 <- enc_charges[complete.cases(enc_charges),]
 enc_charges <- enc_charges2
 
-
-
-# > summary(train$arrival)
-# Min.               1st Qu. 
-# "2012-01-04 00:00:00" "2012-11-06 00:00:00" 
-# Median                  Mean 
-# "2013-03-26 00:00:00" "2013-04-13 04:43:29"  
-# 3rd Qu.                  Max. 
-# "2013-09-21 00:00:00" "2014-06-30 00:00:00" 
 #number of hospitalizations per patient, plus cost. #465,682 rows!
 enc_charges$inpatient <- 0
 enc_charges$inpatient[which(enc_charges$enc_eio=="E, I,")] <- 1
@@ -145,6 +136,63 @@ trainData <- patfinutil
 #but total_charges is based off all total charges of the 
 #training period. That way, we have all encounters, their time,
 #the 'charge' per training encounter and 'total_charges' variable.
+
+#Test
+#Add sum LOS + Encounter Freq
+sumlos <- ddply(test,.(patient_id),summarise,sumlos=sum(los))  #sum of LOS across encounters
+test$encounter_id2 <- 1
+encountfreq<-ddply(test,.(patient_id),summarise,encountfreq=sum(encounter_id2))#find sum of length of stays across encounters
+
+losjoin <- merge(test,
+                 sumlos,
+                 by.x=c("patient_id"),by.y=c("patient_id"), 
+                 byall.x=TRUE)
+
+encountjoin<- merge(losjoin,
+                    encountfreq,
+                    by.x=c("patient_id"),by.y=c("patient_id"),
+                    byall.x=TRUE)
+
+# #Add # of hospitilizations + total patient costs. 
+
+#Charges_all has all inaptient and outpatient encounters
+charges_all_noduplicates <- subset(charges_all, !duplicated(charges_all[,2]))
+enc_charges <- merge(encountjoin,
+                     charges_all_noduplicates,
+                     by.x=c("patient_id","encounter_id"),
+                     all.x=TRUE)
+#Since there's more charges listed than encountjoin info, NAs,
+# and due to mismatch of patient_ids and encounter_ids, 
+# I get much lower # of 263,298
+enc_charges2 <- enc_charges[complete.cases(enc_charges),]
+enc_charges <- enc_charges2
+
+#number of hospitalizations per patient, plus cost. #465,682 rows!
+enc_charges$inpatient <- 0
+enc_charges$inpatient[which(enc_charges$enc_eio=="E, I,")] <- 1
+enc_charges$inpatient[which(enc_charges$enc_eio=="I,")] <- 1
+enc_charges$inpatient[which(enc_charges$enc_eio=="I, O,")] <- 1
+charges.na <- as.numeric(enc_charges$Charges)
+enc_charges$Charges <- as.numeric(enc_charges$Charges)
+#remove rows w/ enc_charges$Charges = NA. Now have 263,294 rows
+enc_charges <- enc_charges[complete.cases(enc_charges[,20]),]
+#For data transformation, add $1 to all Charges
+enc_charges$Charges <- enc_charges$Charges + 1
+
+patient_util <- ddply(enc_charges,
+                      "patient_id",
+                      summarise,
+                      hospitalizations=sum(inpatient),
+                      total_charges=sum(Charges))
+
+patfinutil <- merge(patient_util,
+                    enc_charges,
+                    by.x=c("patient_id"),
+                    by.y=c("patient_id"),
+                    byall.y=TRUE)
+
+testData <- patfinutil
+
 
 ########################
 #########STEP 4#########
