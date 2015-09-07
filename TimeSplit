@@ -1,0 +1,120 @@
+#separating the data
+load("/project/msca/capstone3/all_tables_appended.RData")
+# summarize all patients' first encounters
+class(patEncFin$adm_date_offset) #factor
+enc_dates <- as.character(patEncFin$adm_date_offset)
+names(patEncFin)
+admit_dates <- patEncFin[,c(1:2,4:5)]
+admit_dates$admission <-as.POSIXct(as.character(admit_dates$adm_date_offset), format="%Y-%m-%d %H:%M:%S")
+hist(admit_dates$admission,breaks=100)
+admit_dates$admit_year<-as.numeric(format(admit_dates$admission,"%Y"))
+admit_dates$discharge <- as.POSIXct(as.character(admit_dates$disch_date_offset), format="%Y-%m-%d %H:%M:%S")
+hist(admit_dates$admit_year) # we see start dates in 2012, 2013, 2014, plus a few in 2015
+#we summarize by each patient's FIRST start date
+first_admissions <- ddply(admit_dates, "patient_id",summarise, first_admission=min(admission))
+#remove patients for which we do not have charges
+names(charges_all)
+#investigate total number of patients and the number included in charges_all
+length(unique(charges_all$patient_id)) #56809
+nrow(first_admissions) #57531
+# there are 772 more patients in first_admissions than in charges_all
+# include in first_admissions only those in charges_all
+patients_with_charges <- first_admissions$patient_id %in% charges_all$patient_id
+head(patients_with_charges) #Boolean
+sum(patients_with_charges) #56803
+first_admissions <- first_admissions[patients_with_charges,]
+nrow(first_admissions) #now the first_admissions table includes only those patients with charges
+#explore the properties
+hist(first_admissions$first_admission,breaks=100)
+first_admissions$year <- as.numeric(format(first_admissions$first_admission,"%Y"))
+hist(first_admissions$year)
+table(first_admissions$year)
+#2012  2013  2014  2015 
+#25594 20169 11000  40 
+
+#find the range of admissions for each patient, just to be sure we have 2 years' data for everybody - a quality check
+#add 365 to first admission
+# find sum of all charges for their encounters that happened AFTER 365 but BEFORE 365+366=731 days after their first admission date
+admissions <- ddply(admit_dates, "patient_id",summarise, first_admission=min(admission),last_admission=max(admission),last_discharge=max(discharge))
+admissions$date_range <- difftime(admissions$last_admission,admissions$first_admission,units="days")
+admissions$
+max(admissions$date_range)
+min(admissions$date_range)
+hist(as.numeric(admissions$date_range),breaks=200) #most patients have only 1 encounter
+hist(as.numeric(admissions$date_range),breaks=200)
+head(admissions$last_discharge,50)
+names(admissions)[4] <- "last_dischargeNA"
+#there are several blank discharge dates. I'll replace NAs with the date of the last admission.
+admissions$last_discharge <- admissions$last_dischargeNA
+no_disch_date <- which(is.na(admissions$last_dischargeNA))
+admissions$last_discharge[no_disch_date] <- admissions$last_admission[no_disch_date]
+sum(is.na(admissions$last_discharge)) # no more blank discharge dates
+#now last discharge contains either (A)discharge date, or if discharge date is blank, (B)the last admission date
+# these dates will be used to determine each patient's time cutoff.
+
+#determine the date 365 days before the last discharge
+
+admissions$cutoff_date <- admissions$last_discharge - as.difftime(365,unit="days")
+
+#for each patient, sum costs of encounter_ids that happened after that date
+head(charges_all)
+head(patEncFin)
+
+#Step 1: for each patient, identify which encounters happened after the last discharge
+#add encounter dates to the charges_all table
+#create new charges all data that includes encounter dates, the summarises 2 only charges whose associated date was before the cutoff
+# Note that in doing this, we will lose some patients. We will have to tack them back on to charges all, giving them having 0 charges
+#^not true.... we will not lose patients from charges all. We will only lose patients from the procedure data.
+#create the columns I made for admissions, except implement them in the admit_dates table
+admit_dates$discharge2 <- admit_dates$discharge #create new column for discharge dates
+no_disch_date2 <- which(is.na(admit_dates$discharge))
+nrow(admit_dates)#465682 encounters total
+length(no_disch_date2) #12546 lack discharge date
+admit_dates$discharge2[no_disch_date2] <- admit_dates$admission[no_disch_date2] #now discharge2 has a discharge date for every entry
+#merge charges_all with admissions to get the dates for each encounter
+# we want everything in patient_util, plus whatever overlaps of patfin
+# so that would be a left join (where A = patient_util and B = patfin)
+# in R, a left join is specified by the argument all.x=TRUE in the merge function
+#patient_util_alive <- merge(patient_util,patfin[,c(1,6)],by.x="patient_id",by.y="patient_id", byall.x=TRUE)
+charges_split <- merge(charges_all, admit_dates[,c(1:2,5,8)],by=c("patient_id","encounter_id"),all.x=TRUE) #should be equal to length of charges all, 393925
+nrow(charges_split) #it is indeed equal to the length of charges_all
+#now, merge with admission table to create a column of cutoff dates
+charges_split <- merge(charges_split,admissions[,c(1,7)],by="patient_id",all.x=T)
+head(charges_split)
+#get rid of rows whose discharge dates (I just picked between discharge and admission) are below the cutoff date
+# number of rows removed (below cutoff) should be less than half of the total
+nrow(charges_split)#393925
+charges_below <- subset(charges_split,discharge2<cutoff_date) #charges below cutoff
+nrow(charges_below)#125722
+charges_above <- subset(charges_split,discharge2>cutoff_date)#charges above cutoff
+nrow(charges_above) #267631
+# we find that indeed, the number of rows below the cutoff is fewer than the number of rows within the cutoff.
+
+#now, with the days below the cutoff, summarise to get a number that contains the cost for an individual patient.
+charges_y2 <- ddply(charges_above, "patient_id",summarise, Charges=sum(as.numeric(Charges),na.rm=T))
+sum(is.na(charges_y2$Charges)) #apparently no NAs, despite 7 warnings for NAs...
+nrow(charges_y2) #56780 patients total. Compare this to the number of patients we had determined were represented in charges data previously:
+length(unique(charges_all$patient_id)) #56809, not too big of a difference
+#now we just keep the 56780 patients for which we have y2 values. 
+
+#create train/test split for those patients for which we have y2 charges values. THis should be just about all of the patients. 56,780 patients
+#we make that train/test split based on random 70/30 sample of patient_id values
+train <- sample(1:length(charges_y2$patient_id),floor(0.7*length(charges_y2$patient_id)))
+train_ids <- charges_y2$patient_id[train]#these are the patient_ids in our training set
+test_ids <- charges_y2$patient_id[-train]#these are the patient_ids in our test set
+#investigate the patients with the 7 NAs. Did they just not have any charges after the cutoff?
+#charges_y2[which(is.na(charges_y2$Charges)),]
+#charges_above[which(patient_id)==]
+#charges_were_NA <- charges_above$patient_id %in% charges_y2[which(is.na(charges_y2$Charges)),1]
+#charges_above[charges_were_NA,]
+#solution: inclue na.rm=T in the charges_y2 assignment!
+
+
+
+#how to identify next-year's costs
+### find each patient's last encounter date/latest discharge date (date-365)
+### find the date 1 year before that date.
+### choose encounter IDs that happened after that 1-year mark.
+### sum the charges for those encounter IDs. 
+
+#the cost value is the intercept if you had no encounters in the previous year.
