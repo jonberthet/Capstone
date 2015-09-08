@@ -1,3 +1,14 @@
+### This file creates a patient-level matrix. Input variables are calculated based on year 1. Output is year2 charges.######
+
+# STEP 1: Remove post-cutoff (year2) encounters from patEncFin
+# STEP 2: Calculate predictor variables based on the remaining year-2 encounters
+# STEP 3: Create a patient-level table which summarizes our calculated variables
+# STEP 4: Merge our output (year2 charges) to this patient-level table. 
+# STEP 5: Merge in the demographic variables from the patfin table
+# STEP 6: Replace NAs (from patients who didn't have year1 encounters) with 0, in columns where it is appropriate to enter 0 for a patient with no encounters
+# STEP 7: Save the matrix as a .RData file.
+
+
 library(sqldf)
 library("dplyr", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
 library("plyr", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
@@ -6,13 +17,6 @@ library("randomForest", lib.loc="/home/kjtong/R/x86_64-unknown-linux-gnu-library
 library("ggplot2", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
 
 load("/project/msca/capstone3/all_tables_appended.RData")
-# STEP 1: Remove post-cutoff (year2) encounters from patEncFin
-# STEP 2: Calculate predictor variables based on the remaining year-2 encounters
-# STEP 3: Create a patient-level table which summarizes our calculated variables
-# STEP 4: Merge our output (year2 charges) to this patient-level table. 
-# STEP 5: Merge in the demographic variables from the patfin table
-# STEP 6: Replace NAs (from patients who didn't have year1 encounters) with 0, in columns where it is appropriate to enter 0 for a patient with no encounters
-# STEP 7: Save the matrix as a .RData file.
 
 # STEP 1:  Remove post-cutoff (year2) encounters from patEncFin
 patEncFin_cutoff <- patEncFin
