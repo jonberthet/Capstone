@@ -1,0 +1,121 @@
+library(sqldf)
+library("dplyr", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
+library("plyr", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
+library("rpart", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")#Classification Tree
+library("randomForest", lib.loc="/home/kjtong/R/x86_64-unknown-linux-gnu-library/3.2")
+library("ggplot2", lib.loc="/software/R-3.2-el6-x86_64/lib64/R/library")
+
+load("/project/msca/capstone3/all_tables_appended.RData")
+# STEP 1: Remove post-cutoff (year2) encounters from patEncFin
+# STEP 2: Calculate predictor variables based on the remaining year-2 encounters
+# STEP 3: Create a patient-level table which summarizes our calculated variables
+# STEP 4: Merge our output (year2 charges) to this patient-level table. 
+# STEP 5: Merge in the demographic variables from the patfin table
+# STEP 6: Replace NAs (from patients who didn't have year1 encounters) with 0, in columns where it is appropriate to enter 0 for a patient with no encounters
+# STEP 7: Save the matrix as a .RData file.
+
+# STEP 1:  Remove post-cutoff (year2) encounters from patEncFin
+patEncFin_cutoff <- patEncFin
+patEncFin_cutoff$admission <-as.POSIXct(as.character(patEncFin_cutoff$adm_date_offset), format="%Y-%m-%d %H:%M:%S")
+patEncFin_cutoff$dischargeNA <- as.POSIXct(as.character(patEncFin_cutoff$disch_date_offset), format="%Y-%m-%d %H:%M:%S")
+patEncFin_cutoff$discharge <-patEncFin_cutoff$dischargeNA
+no_disch_date <- which(is.na(patEncFin_cutoff$dischargeNA))
+#if no discharge date is present, assume it is the same as admission date 
+patEncFin_cutoff$discharge[no_disch_date]<-patEncFin_cutoff$admission[no_disch_date]
+create_cutoff <- ddply(patEncFin_cutoff, "patient_id",summarise, first_admission=min(admission),last_admission=max(admission),last_discharge=max(discharge))#takes ~1min to create
+create_cutoff$date_range <- difftime(create_cutoff$last_admission,create_cutoff$first_admission,units="days")
+create_cutoff$cutoff_date <- create_cutoff$last_discharge - as.difftime(365,unit="days")
+# For every row corresponding to a patient's encounter in patEncFin, add in that patient's patient-specific cutoff date
+patEncFin_cutoff <- merge(patEncFin_cutoff,create_cutoff[,c(1,6)],by="patient_id",all=T) #if you edit create_cutoff, be sure to change col#s here!
+#STEP 1b: Remove those post-cutoff encounters from patEncFin
+patEncFin_y1 <- subset(patEncFin_cutoff,discharge<cutoff_date)
+# compare number of encounters in total and in the below-cutoff subset
+nrow(patEncFin_cutoff) #465682
+nrow(patEncFin_y1)#148800, the number difference is about what we expected
+
+
+# STEP 2: Calculate variables
+# STEP 2a: Calculate length_of_stay
+patEncFin_y1$los <- as.numeric(difftime(patEncFin_y1$discharge,patEncFin_y1$admission,units="days"),units="days") #length of stay in days
+# later when we create a patient-level table (each row is 1 patient id), we will summarise this as sumlos=sum(los)
+# Step 2b: Calculate encounter number/hospitalizations
+patEncFin_y1$encounter_id2 <- 1
+# later when we create a patient-level table (each row is 1 patient id), we will summarise this as encountfreq=sum(encounter_id2)
+# Step 2c: Calculate number of hospitalizations
+patEncFin_y1$inpatient <- 0
+patEncFin_y1$inpatient[which(patEncFin_y1$enc_eio=="E, I,")] <- 1
+patEncFin_y1$inpatient[which(patEncFin_y1$enc_eio=="I,")] <- 1
+patEncFin_y1$inpatient[which(patEncFin_y1$enc_eio=="I, O,")] <- 1
+# later when we create a patient-level table (each row is 1 patient id), we will summarise this as hospitalizations=sum(inpatient)
+# Step 2d: Calculate y1 charges as input variable
+# associate each encounter with a charge. If the encounter has no associated charge, remove it.
+patEncFin_y1 <- merge(patEncFin_y1, charges_all[,1:3],by=c("patient_id","encounter_id"))
+# later when we create a patient-level table (each row is 1 patient id), we will summarise this as y1_charges=sum(Charges)
+# create a function to calculate the most frequently-occuring response for discharge_dispo
+Mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+#Step 3: Create a patient-level table which summarizes our calculated variables
+patient_matrix <- ddply(patEncFin_y1, "patient_id",summarise, 
+                        sumlos=sum(los),
+                        encountfreq=sum(encounter_id2),
+                        hospitalizations=sum(inpatient),
+                        age=max(age_at_enc),
+                        num_ER_visits =sum(enc_eio=="E,")+sum(enc_eio=="E, I,")+sum(enc_eio=="E, O,"),
+                        mode_discharge_dispo = Mode(discharge_dispo),
+                        y1_charges=sum(as.numeric(Charges),na.rm=T)+1)
+
+nrow(patient_matrix) #21198
+
+#check for nas
+nacols <- function(df) {
+  colnames(df)[unlist(lapply(df, function(x) any(is.na(x))))]
+}
+nacols(patient_matrix) #no columns contain NAs
+
+
+# STEP 4: Merge our output (year2 charges) to this table. Do this BEFORE adding in demographic variables, so ALL patients with charges are represented.
+# This will take care of including patients who got lost because they lacked year1 charges.
+# In other words, any patients who had any charge data will be included in this data frame.
+length(unique(charges_all$patient_id)) #there appear to be 56,809 unique patients with charge data
+load("/project/msca/capstone3/charges_y2.RData")
+names(charges_y2)[2] <- "y2_charges"
+nrow(charges_y2)#56780 patients are captured in y2 charges. 
+# so there are 29 patients for which we have some charge data but not y2 charge data. weird. but 29 is too few to matter.
+
+patient_matrix <- merge(patient_matrix,charges_y2,all.y=T)
+nrow(patient_matrix)#56870
+# for all those patients that were added in by charges_y2 (i.e., those that didn't have an encounter in y1)
+# for those patients who had 0 encounters in their first year, replace input variables with 0.
+# check for NAs (we would expect NAs)
+nacols(patient_matrix) #all input variable columns (but not patient_id or year2-charges)contain NAs now
+# that's because some patients did not have encounters in year 1.
+
+
+# Step 5: merge in the demographic variables from the patfin table
+patient_matrix <- merge(patient_matrix,patfin,all.x=T) 
+# age has NAs for patients without year1 encounters, so we calculate that
+patient_age <- ddply(patEncFin[,1:3],"patient_id",summarise,age_y2=max(age_at_enc)) # this a patient's highest (most recent) age
+patient_matrix <- merge(patient_matrix,patient_age,by="patient_id",all.x=T)
+patient_matrix$age <- NULL
+
+
+# Step 6: replace NAs with 0, in columns where it is appropriate to enter 0 for a patient with no encounters
+patient_matrix$sumlos[which(is.na(patient_matrix$sumlos))] <- 0
+patient_matrix$encountfreq[which(is.na(patient_matrix$encountfreq))] <- 0
+patient_matrix$hospitalizations[which(is.na(patient_matrix$hospitalizations))] <- 0
+patient_matrix$num_ER_visits[which(is.na(patient_matrix$num_ER_visits))] <- 0
+patient_matrix$mode_discharge_dispo[which(is.na(patient_matrix$mode_discharge_dispo))] <- "Not applicable"
+patient_matrix$y1_charges[which(is.na(patient_matrix$y1_charges))] <- 0
+
+
+# Step 7: save the matrix as an .RData file
+save(patient_matrix,file="/project/msca/capstone3/patient_matrix.RData")
+
+
+nrow(patEncFin_y1_charges) #125,725
+nrow(charges_above)#125,722
+# close enough to the nrow of charges_above
+nrow(patEncFin_y1) #148,800
