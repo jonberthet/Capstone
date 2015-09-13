@@ -1,8 +1,8 @@
 #Patient-level Matrix, centered
 
-#STEP 1: remove cutoff encounters from patEncFin
+#STEP 1: remove encounters above from patEncFin
+#The follwin is a patient-level data.frame created in TimeSplit_centered; contains patient_id,cutoff,y1 charges,y2 charges
 load("/project/msca/capstone3/patient_cutoff_charges.RData") 
-#This a patient-level data.frame created in TimeSplit_centered; contains patient_id,cutoff,y1 charges,y2 charges
 
 # clean patEncFin dates
 patEncFin_cutoff <- patEncFin
@@ -27,7 +27,7 @@ length(which(is.na(patEncFin_cutoff$above_cutoff)))
 patEncFin_cutoff <- subset(patEncFin_cutoff,!is.na(above_cutoff))
 patEncFin_cutoff <- patEncFin_cutoff2
 # remove rows corresponding to year2
-patEncFin_y1 <- subset(patEncFin_cutoff,above_cutoff==1) #note my use of <, rather than <=. This is consistent with how I calculated y1 vs. y2 charges in patient_cutoff_charges.
+patEncFin_y1 <- subset(patEncFin_cutoff,above_cutoff==0)
 
 
 # STEP 2: Calculate variables
@@ -66,7 +66,9 @@ nrow(patient_matrix)
 nacols <- function(df) {
   colnames(df)[unlist(lapply(df, function(x) any(is.na(x))))]
 }
-nacols(patient_matrix) #no columns contain NAs
+nacols(patient_matrix) #18 NAs. these correspond to the same rows. Remove them.
+patient_matrix <- subset(patient_matrix,!is.na(y2_charges) & !(is.na(y1_charges)))
+nrow(patient_matrix)
 
 # Step 5: merge in the demographic variables from the patfin table
 patient_matrix <- merge(patient_matrix,patfin,all.x=T) 
