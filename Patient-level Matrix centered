@@ -18,8 +18,17 @@ patEncFin_cutoff <- merge(patEncFin_cutoff,patient_cutoff_charges,all=T)
 nrow(patEncFin)==nrow(patEncFin_cutoff)#the merge didn't add any rows to patEncFin; that means all patients in patEncFin are in patient_cutoff_charges. good.
 
 
+# associate the encounter_ids that were used to calculate year1 charges with this patEncFin table
+# to do this, merge the object charges_split
+load("/project/msca/capstone3/charges_split.RData")
+patEncFin_cutoff <- merge(patEncFin_cutoff,charges_split[,c(1:3,6)],by=c("patient_id","encounter_id"),all=T)
+length(which(is.na(patEncFin_cutoff$above_cutoff)))
+# lots of NAs where we don't have charges data for patients. I remove these
+patEncFin_cutoff <- subset(patEncFin_cutoff,!is.na(above_cutoff))
+patEncFin_cutoff <- patEncFin_cutoff2
 # remove rows corresponding to year2
-patEncFin_y1 <- subset(patEncFin_cutoff,discharge<cutoff_date) #note my use of <, rather than <=. This is consistent with how I calculated y1 vs. y2 charges in patient_cutoff_charges.
+patEncFin_y1 <- subset(patEncFin_cutoff,above_cutoff==1) #note my use of <, rather than <=. This is consistent with how I calculated y1 vs. y2 charges in patient_cutoff_charges.
+
 
 # STEP 2: Calculate variables
 # STEP 2a: Calculate length_of_stay
