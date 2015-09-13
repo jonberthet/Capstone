@@ -1,0 +1,77 @@
+# load libraries & files
+library(plyr)
+load("/project/msca/capstone3/all_tables_appended.RData")
+
+# create a table of dates of patient encounters; 
+admit_dates <- patEncFin[,c(1:2,4:5)] #create a table of patient encounter dates (admission & discharge)
+admit_dates$admission <-as.POSIXct(as.character(admit_dates$adm_date_offset), format="%Y-%m-%d %H:%M:%S")
+admit_dates$discharge <- as.POSIXct(as.character(admit_dates$disch_date_offset), format="%Y-%m-%d %H:%M:%S")
+#fix the issue of NAs in discharge dates
+admit_dates$discharge2 <- admit_dates$discharge #create new column for discharge dates
+no_disch_date2 <- which(is.na(admit_dates$discharge))
+admit_dates$discharge2[no_disch_date2] <- admit_dates$admission[no_disch_date2] #now discharge2 has a discharge date for every entry
+
+
+#create a table of important dates at the patient level: first and last admissions, and last discharge; plus the first value of admit_year
+# note: we will only need to use admit_year for patients with 1 encounter)
+admissions <- ddply(admit_dates, "patient_id",summarise, first_admission=min(admission),last_admission=max(admission),last_discharge=max(discharge2),num_encounters=length(encounter_id))#takes a minute
+
+
+#calculate range (span over time, in # of days) of patient encounter dates (distance between first_admission and last_discharge), and divide in two.
+admissions$date_range <- difftime(admissions$last_discharge,admissions$first_admission,units="days")
+admissions$half_date_range <- admissions$date_range/2 
+
+
+# determine the cutoff date: last_admission - 1/2(distance between first and last encounter dates)
+admissions$cutoff_date <- admissions$last_discharge - admissions$half_date_range
+# for patients with only 1 encounter, we randomly add or substract 1 day to their cutoff date
+admissions$rand_samp <- as.difftime(sample(c(-1,1),nrow(admissions),replace=T),unit="days")
+admissions$cutoff_date[which(admissions$num_encounters==1)] <-  admissions$cutoff_date[which(admissions$num_encounters==1)] + admissions$rand_samp[which(admissions$num_encounters==1)]
+
+
+#merge charges_all with admissions to get the dates for each encounter
+charges_split <- merge(charges_all, admit_dates[,c(1:2,which(names(admit_dates)=="discharge2"))],by=c("patient_id","encounter_id"),all.x=TRUE) #same nrows as charges_all, 393925
+#now, merge with admission table to create a column of cutoff dates
+charges_split <- merge(charges_split,admissions[,c(which(names(admissions)=="patient_id"),which(names(admissions)=="cutoff_date"))],by="patient_id",all.x=T)
+charges_below <- subset(charges_split,discharge2<cutoff_date) #charges below cutoff;
+charges_above <- subset(charges_split,discharge2>=cutoff_date)#charges above cutoff; note the >= here
+nrow(charges_above) #[1] 196329
+nrow(charges_below) #[1] 197563
+# so we have a comparable number of encounters above and below the cutoff dates.
+
+
+# calculate year2 charges, and while we're at it, why not calculate y1 charges as well
+charges_y2 <- ddply(charges_above, "patient_id",summarise, charges=sum(as.numeric(Charges),na.rm=T))
+charges_y1 <- ddply(charges_below, "patient_id",summarise, charges=sum(as.numeric(Charges),na.rm=T))
+nrow(charges_y2)#49714
+nrow(charges_y1)#46370
+length(unique(charges_all$patient_id))#56809
+# note that the number of rows in this charges data set is equal to the number of unique patient_ids in those data sets
+# note, more importantly, that neither of the number of rows in this data set is equal to the total number of patient ids in charges_all
+# this is fine; we just need to merge back in our patients that got lost during the ddply compression to a patient-level matrix.
+save(charges_y2,file="/project/msca/capstone3/charges_y2.2.RData")
+save(charges_y1,file="/project/msca/capstone3/charges_y1.2.RData")
+
+
+#merge in y1 & y2 costs
+admissions <- merge(admissions,charges_y1,all.x=T)
+names(admissions)[which(names(admissions)=="charges")]="charges_y1"
+admissions <- merge(admissions,charges_y2,all.x=T)
+names(admissions)[which(names(admissions)=="charges")]="charges_y2"
+length(which(is.na(admissions$charges_y1) & is.na(admissions$charges_y2))) # 728 patients have no charge data in charges_all. We expected this - see next line.
+length(unique(patEncFin$patient_id)) - length(unique(charges_all$patient_id)) #722 patients in patEncFin who didn't have charge data in charges_all
+#We expected this because there are 722 patients in patEncFin who have encounters, but no charge data, so we don't know what their charges are for those encounters.
+#Therefore, we remove those patients who have NAs for BOTH columns
+admissions <- admissions[-which(is.na(admissions$charges_y1) & is.na(admissions$charges_y2)),]
+# We set the remaining NA charges to 0, because these refer to patients who had at least 1 charged encounter in the 2-year period.
+# This works because these patients didn't appear in charges_y1 data set because they actually had no y1 encounters.
+# So charges does in fact = 0 for these NA values.
+admissions$charges_y1[which(is.na(admissions$charges_y1))] <- 0
+admissions$charges_y2[which(is.na(admissions$charges_y2))] <- 0
+
+
+#Create a table that ties together patient_id, cutoff date, and year1 & year2 charges
+patient_cutoff_charges <- admissions[,c(which(names(admissions)=="patient_id"),which(names(admissions)=="cutoff_date"),which(names(admissions)=="charges_y1"),which(names(admissions)=="charges_y2"))]
+save(patient_cutoff_charges,file="/project/msca/capstone3/patient_cutoff_charges.RData")
+
+
