@@ -39,6 +39,15 @@ nrow(charges_above) #[1] 196329
 nrow(charges_below) #[1] 197563
 # so we have a comparable number of encounters above and below the cutoff dates.
 
+# create object that identifies encounter_ids that are above or below the cutoff
+charges_split$above_cutoff <- 0
+charges_split$above_cutoff[which(charges_split$discharge2>=charges_split$cutoff_date)] <- 1
+head(charges_split$above_cutoff)
+length(which(charges_split$above_cutoff==0))
+length(which(charges_split$above_cutoff==1))
+charges_split <- charges_split[,c(1:3,7:9)]
+save(charges_split,file="/project/msca/capstone3/charges_split.RData")
+
 
 # calculate year2 charges, and while we're at it, why not calculate y1 charges as well
 charges_y2 <- ddply(charges_above, "patient_id",summarise, charges=sum(as.numeric(Charges),na.rm=T))
