@@ -1,0 +1,201 @@
+library(plyr)
+library(corrplot)
+library(tree)
+
+
+load(file="/project/msca/capstone3/patient_matrixrevise.RData")
+#1: Clean Data
+patient_matrix<-data.frame(patient_matrix)
+patient_matrix$race[patient_matrix$race == 'B'] <- 'Black/African-American'
+patient_matrix$race[patient_matrix$race == 'W'] <- 'White'
+patient_matrix$race[patient_matrix$race == 'U'] <- 'Unknown'
+patient_matrix$race[patient_matrix$race == 'Patient Declined'] <- 'Unknown'
+patient_matrix$race[patient_matrix$race == ''] <- 'Unknown'
+patient_matrix$race[patient_matrix$race == 'A'] <- 'Asian/Mideast Indian'
+patient_matrix$race[patient_matrix$race == 'N/A'] <- 'Unknown'
+patient_matrix$race[patient_matrix$race == 'N'] <- 'Unknown'
+patient_matrix$race[patient_matrix$race == 'NA'] <- 'Unknown'
+
+#clean marital status
+patient_matrix$marital_status[patient_matrix$marital_status == ''] <- 'Unknown'
+patient_matrix$marital_status[patient_matrix$marital_status == 'N/A'] <- 'Unknown'
+
+#clean ethnicity
+patient_matrix$ethnicity[patient_matrix$ethnicity == ''] <- 'Unknown'
+patient_matrix$ethnicity[patient_matrix$ethnicity == 'N/A'] <- 'Unknown'
+patient_matrix$ethnicity[patient_matrix$ethnicity == 'Patient Declined'] <- 'Unknown'
+
+levels(patient_matrix$marital_status)
+table(patient_matrix$mode_discharge_dispo)
+
+
+save(patient_matrix, file="/project/msca/capstone3/patient_matrixrevise.RData")
+
+
+#2: Subset Patients
+
+plus65 <- subset(patient_matrix, age_y2>= 65)
+under65 <- subset(patient_matrix, age_y2<65)
+A<- subset(patient_matrix, race="Asian/Mideast Indian")
+B<-subset(patient_matrix, race=Black/African-American)
+PI<- subset(patient_matrix, race="Native Hawaiian/Other Pacific Islander")
+I<- subset(patient_matrix, race="American Indian or Alaska Native")
+W<- subset(patient_matrix, race=White)
+hispanic<-subset(patient_matrix, ethnicity="Hispanic or Latino")
+nothispanic<-subset(patient_matrix, ethnicity="Not Hispanic or Latino")
+homelw<-subset(patient_matrix,mode_discharge_disp="Home LW")
+f<-subset(patient_matrix,sex=F)
+m<-subset(patient_matrix,sex=M)
+married<-subset(patient_matrix,marital_status=Married)
+Single<-subset(patient_matrix,marital_status=Single)
+Widowed<-subset(patient_matrix,marital_status=Widowed)
+Divorced<-subset(patient_matrix,marital_status=Divorced)
+
+
+
+#df <- plus65
+#df<- under65
+df<-A
+#df<-B
+#df<-PI
+#df<-I
+#df<-W
+#df<-hispanic
+#df<-nothispanic
+#df<-homelw
+#df<-f
+#df<-m
+#df<-married
+#df<-Single
+#df<-Widowed
+#df<-Divorced
+#3: Apply K-Means to Subsets
+set.seed(10)
+trainmatrix<- data.matrix(df)
+km.charges <- kmeans(data.matrix(df[,10]), 6, nstart=50)
+plot(data.matrix(trainmatrix[,10]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
+km.charges$centers
+#NOTE: cluster #s change after each run, so double check!
+#Bind cluster categories w/ 'charges' table
+df <- cbind(df, chargesClustered = km.charges$cluster) 
+#K Means and Transform Charges
+
+y=log(df$y2_charges)#transform y to normal distribution
+df$y2_charges <- replace(y,y=="-Inf",0)#remove -inf
+df$y2_charges<-df$y2_charges+1
+#Create Charge Cluster data
+
+#4: Apply Test and Train on the subests
+train <- sample(1:nrow(df),floor(0.7*nrow(df)))
+training_set <- df[train,]
+testing_set <- df[-train,]
+c1 <- training_set[training_set$chargesClustered == 1,]
+c2 <- training_set[training_set$chargesClustered == 2,]
+c3 <- training_set[training_set$chargesClustered == 3,]
+c4 <- training_set[training_set$chargesClustered == 4,]
+c5 <- training_set[training_set$chargesClustered == 5,]
+c6 <- training_set[training_set$chargesClustered == 6,]
+#Build linear regressions
+fulllm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=training_set)
+summary(fulllm)
+fulllm.MSE <- mean((fulllm$fitted.values - training_set$y2_charges)^2)
+pred<-predict(fulllm, newdata=testing_set)
+summary(pred)
+
+
+c1lm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=c1)
+summary(c1lm)
+c1.MSE <- mean((c1lm$fitted.values - c1$y2_charges)^2)
+
+c2lm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=c2)
+summary(c2lm)
+c2.MSE <- mean((c2lm$fitted.values - c2$y2_charges)^2)
+
+c3lm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=c3)
+summary(c3lm)
+c3.MSE <- mean((c3lm$fitted.values - c3$y2_charges)^2)
+
+c4lm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=c4)
+summary(c4lm)
+c4.MSE <- mean((c4lm$fitted.values - c4$y2_charges)^2)
+
+c5lm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=c5)
+summary(c5lm)
+c5.MSE <- mean((c5lm$fitted.values - c5$y2_charges)^2)
+
+c6lm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=c6)
+summary(c6lm)
+c6.MSE <- mean((c6lm$fitted.values - c6$y2_charges)^2)
+
+#Compare Linear Models
+fulllm.MSE;c1.MSE;c2.MSE;c3.MSE;c4.MSE;c5.MSE;c6.MSE
+
+AIC(fulllm)
+AIC(c1lm);AIC(c2lm);AIC(c3lm);AIC(c4lm);AIC(c5lm);AIC(c6lm)
+
+
+#Decision Trees
+
+dftree<-df
+dftree$dod_off<-NULL
+High<-ifelse(dftree$y2_charges<=10,"No","Yes")  #Can adjust threshold based on population
+dftree=data.frame(dftree, High)
+traintree <- sample(1:nrow(dftree),floor(0.7*nrow(dftree)))
+training_set_tree <- dftree[traintree,]
+testing_set_tree <- dftree[-traintree,]
+High.test<-High[-traintree]
+tree.df<-tree(High~.-y2_charges,data=dftree)
+summary(tree.df)
+plot(tree.df)
+text(tree.df,pretty=0)
+tree.df
+set.seed(10)
+tree.train<-tree(High~.-y2_charges,dftree,subset=traintree)
+tree.pred<-predict(tree.train,testing_set_tree, type="class")
+table(tree.pred, High.test)
+(2450+4402)/(2450+4402+1069+701) #Change based on data
+#Prune
+set.seed(10)
+cv.tree=cv.tree(tree.train, FUN=prune.misclass)
+names(cv.tree)
+cv.tree
+
+par(mfrow=c(1,2))
+plot(cv.tree$size,cv.tree$dev, type="b")
+plot(cv.tree$k,cv.tree$dev, type="b") # can change based on population
+
+prune.tree=prune.misclass(tree.train,best=8) #Can adjust node size
+plot(prune.tree)
+text(prune.tree,pretty=0)
+
+tree.pred=predict(prune.tree,testing_set_tree, type="class")
+table(tree.pred,High.test)
+(2450 +4402)/(2450 +1069+701 +4402)
+
+#Regression Tree
+library(MASS)
+
+dftree<-df
+dftree$dod_off<-NULL
+traintree <- sample(1:nrow(dftree),floor(0.7*nrow(dftree)))
+training_set_tree <- dftree[traintree,]
+testing_set_tree <- dftree[-traintree,]
+set.seed(10)
+regression.tree<-tree(y2_charges~.,dftree,subset=traintree)
+summary(regression.tree)
+
+plot(regression.tree)
+text(regression.tree,pretty=0)
+cv.regressiontree=cv.tree(regression.tree)
+plot(cv.regressiontree$size,cv.regressiontree$dev,type="b")
+
+prune.regressiontree=prune.tree(regression.tree,best=8)
+plot(prune.regressiontree)
+text(prune.regressiontree,pretty=0)
+
+yhat=predict(regression.tree,newdata=testing_set_tree)
+regression.test=dftree[-traintree, "y2_charges"]
+plot(yhat,regression.test)
+abline(0,1)
+mean((yhat-regression.test)^2)
+
