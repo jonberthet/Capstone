@@ -28,8 +28,8 @@ patient_matrix$ethnicity[patient_matrix$ethnicity == 'Patient Declined'] <- 'Unk
 levels(patient_matrix$marital_status)
 table(patient_matrix$mode_discharge_dispo)
 
-
-save(patient_matrix, file="/project/msca/capstone3/patient_matrixrevise.RData")
+df<-df[1:22]
+save(df, file="/project/msca/capstone3/patient_matrixrevise.RData")
 
 
 #2: Subset Patients
@@ -43,8 +43,8 @@ I<- subset(patient_matrix, race=="American Indian or Alaska Native")
 W<- subset(patient_matrix, race=="White")
 hispanic<-subset(patient_matrix, ethnicity=="Hispanic or Latino")
 nothispanic<-subset(patient_matrix, ethnicity=="Not Hispanic or Latino")
-homelw<-subset(patient_matrix,mode_discharge_dispo=="Home LW")
-f<-subset(patient_matrix,sex=="F")
+homelw<-subset(patient_matrix, mode_discharge_dispo=="Home LW")
+f<-subset(patient_matrix,sex== "F")
 m<-subset(patient_matrix,sex=="M")
 married<-subset(patient_matrix,marital_status=="Married")
 Single<-subset(patient_matrix,marital_status=="Single")
@@ -52,10 +52,10 @@ Widowed<-subset(patient_matrix,marital_status=="Widowed")
 Divorced<-subset(patient_matrix,marital_status=="Divorced")
 
 
-
+df<-patient_matrix
 #df <- plus65
 #df<- under65
-df<-A
+#df<-A
 #df<-B
 #df<-PI
 #df<-I
@@ -70,75 +70,104 @@ df<-A
 #df<-Widowed
 #df<-Divorced
 #3: Apply K-Means to Subsets
+df$y2_charges <- df$y2_charges + 1 
+df$y1_charges <- df$y1_charges + 1
+df$y1_charges_log <- log(df$y1_charges)#transform charges to normal distribution 
+df$y2_charges_log <- log(df$y2_charges)#transform charges to normal distribution 
 set.seed(10)
-trainmatrix<- data.matrix(df)
-km.charges <- kmeans(data.matrix(df[,10]), 6, nstart=50)
-plot(data.matrix(trainmatrix[,10]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
-km.charges$centers
+km.y1charges.log <- kmeans(data.matrix(df[,17]), centers = 4, nstart=2)
+km.y2charges.log <- kmeans(data.matrix(df[,18]), centers = 4, nstart=2)
+
+km.y1charges <- kmeans(data.matrix(df[,9]), centers =9, nstart=2)
+km.y2charges <- kmeans(data.matrix(df[,10]), centers = 9, nstart=2)
+length(km.y1charges.log$cluster);length(km.y2charges.log$cluster)
+length(km.y1charges$cluster);length(km.y2charges$cluster) 
 #NOTE: cluster #s change after each run, so double check!
 #Bind cluster categories w/ 'charges' table
-df <- cbind(df, chargesClustered = km.charges$cluster) 
-#K Means and Transform Charges
+data2 <- cbind(df, y1chargesClusteredLog = km.y1charges.log$cluster)
+data3 <- cbind(data2, y2chargesClusteredLog = km.y2charges.log$cluster)
+data4 <- cbind(data3, y1chargesClustered = km.y1charges$cluster)
+data5 <- cbind(data4, y2chargesClustered = km.y2charges$cluster)
 
-y=log(df$y2_charges)#transform y to normal distribution
-df$y2_charges <- replace(y,y=="-Inf",0)#remove -inf
-df$y2_charges<-df$y2_charges+1
+############
+#FINAL DATA:
+df <- data5
+save(df, file="/project/msca/capstone3/patient_matrixrevise.RData")
 #Create Charge Cluster data
 
 #4: Apply Test and Train on the subests
 train <- sample(1:nrow(df),floor(0.7*nrow(df)))
 training_set <- df[train,]
 testing_set <- df[-train,]
-c1 <- training_set[training_set$chargesClustered == 1,]
-c2 <- training_set[training_set$chargesClustered == 2,]
-c3 <- training_set[training_set$chargesClustered == 3,]
-c4 <- training_set[training_set$chargesClustered == 4,]
-c5 <- training_set[training_set$chargesClustered == 5,]
-c6 <- training_set[training_set$chargesClustered == 6,]
+c1 <- training_set[training_set$y2chargesClustered == 1,]
+c2 <- training_set[training_set$y2chargesClustered == 2,]
+c3 <- training_set[training_set$y2chargesClustered == 3,]
+c4 <- training_set[training_set$y2chargesClustered == 4,]
+c5 <- training_set[training_set$y2chargesClustered == 5,]
+c6 <- training_set[training_set$y2chargesClustered == 6,]
+c7 <- training_set[training_set$y2chargesClustered == 7,]
+c8 <- training_set[training_set$y2chargesClustered == 8,]
+c9 <- training_set[training_set$y2chargesClustered == 9,]
 #Build linear regressions
-fulllm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=training_set)
+fulllm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=training_set)
 summary(fulllm)
-fulllm.MSE <- mean((fulllm$fitted.values - training_set$y2_charges)^2)
+fulllm.MSE <- mean((fulllm$fitted.values - training_set$y2_charges_log)^2)
 pred<-predict(fulllm, newdata=testing_set)
 summary(pred)
 
 
-c1lm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=c1)
+c1lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c1)
 summary(c1lm)
-c1.MSE <- mean((c1lm$fitted.values - c1$y2_charges)^2)
+c1.MSE <- mean((c1lm$fitted.values - c1$y2_charges_log)^2)
 
-c2lm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=c2)
+c2lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c2)
 summary(c2lm)
-c2.MSE <- mean((c2lm$fitted.values - c2$y2_charges)^2)
+c2.MSE <- mean((c2lm$fitted.values - c2$y2_charges_log)^2)
 
-c3lm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=c3)
+c3lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c3)
 summary(c3lm)
-c3.MSE <- mean((c3lm$fitted.values - c3$y2_charges)^2)
+c3.MSE <- mean((c3lm$fitted.values - c3$y2_charges_log)^2)
 
-c4lm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=c4)
+c4lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c4)
 summary(c4lm)
-c4.MSE <- mean((c4lm$fitted.values - c4$y2_charges)^2)
+c4.MSE <- mean((c4lm$fitted.values - c4$y2_charges_log)^2)
 
-c5lm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=c5)
+c5lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c5)
 summary(c5lm)
-c5.MSE <- mean((c5lm$fitted.values - c5$y2_charges)^2)
+c5.MSE <- mean((c5lm$fitted.values - c5$y2_charges_log)^2)
 
-c6lm<-lm(y2_charges~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+chargesClustered, data=c6)
+c6lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c6)
 summary(c6lm)
-c6.MSE <- mean((c6lm$fitted.values - c6$y2_charges)^2)
+c6.MSE <- mean((c6lm$fitted.values - c6$y2_charges_log)^2)
+
+c7lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c7)
+summary(c7lm)
+c7.MSE <- mean((c7lm$fitted.values - c7$y2_charges_log)^2)
+
+c8lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c8)
+summary(c8lm)
+c8.MSE <- mean((c8lm$fitted.values - c8$y2_charges_log)^2)
+
+c9lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c9)
+summary(c9lm)
+c9.MSE <- mean((c9lm$fitted.values - c9$y2_charges_log)^2)
 
 #Compare Linear Models
-fulllm.MSE;c1.MSE;c2.MSE;c3.MSE;c4.MSE;c5.MSE;c6.MSE
+fulllm.MSE;c1.MSE;c2.MSE;c3.MSE;c4.MSE;c5.MSE;c6.MSE;c7.MSE;c8.MSE;c9.MSE
 
 AIC(fulllm)
-AIC(c1lm);AIC(c2lm);AIC(c3lm);AIC(c4lm);AIC(c5lm);AIC(c6lm)
+AIC(c1lm);AIC(c2lm);AIC(c3lm);AIC(c4lm);AIC(c5lm);AIC(c6lm);AIC(c7lm);AIC(c8lm);AIC(c9lm)
 
 
 #Decision Trees
-
+set.seed(10)
 dftree<-df
 dftree$dod_off<-NULL
-High<-ifelse(dftree$y2_charges<=10,"No","Yes")  #Can adjust threshold based on population
+dftree$y2_charges_log <-NULL
+dftree$y2chargesClustered   <-NULL 
+dftree$y2chargesClusteredLog<-NULL
+
+High<-ifelse(dftree$y2_charges<=1000000,"No","Yes")  
 dftree=data.frame(dftree, High)
 traintree <- sample(1:nrow(dftree),floor(0.7*nrow(dftree)))
 training_set_tree <- dftree[traintree,]
@@ -153,7 +182,9 @@ set.seed(10)
 tree.train<-tree(High~.-y2_charges,dftree,subset=traintree)
 tree.pred<-predict(tree.train,testing_set_tree, type="class")
 table(tree.pred, High.test)
-(2450+4402)/(2450+4402+1069+701) #Change based on data
+
+Misclassrate<- (10893 +23)/(10893+23+3052)
+Misclassrate
 #Prune
 set.seed(10)
 cv.tree=cv.tree(tree.train, FUN=prune.misclass)
@@ -162,21 +193,21 @@ cv.tree
 
 par(mfrow=c(1,2))
 plot(cv.tree$size,cv.tree$dev, type="b")
-plot(cv.tree$k,cv.tree$dev, type="b") # can change based on population
+plot(cv.tree$k,cv.tree$dev, type="b") 
 
-prune.tree=prune.misclass(tree.train,best=8) #Can adjust node size
+prune.tree=prune.misclass(tree.train,best=2) #Can adjust node size
 plot(prune.tree)
 text(prune.tree,pretty=0)
 
 tree.pred=predict(prune.tree,testing_set_tree, type="class")
 table(tree.pred,High.test)
-(2450 +4402)/(2450 +1069+701 +4402)
+
+Misclassrateprune<-(9874 + 23)/(9874 + 23+4071)
+Misclassrateprune
 
 #Regression Tree
 library(MASS)
 
-dftree<-df
-dftree$dod_off<-NULL
 traintree <- sample(1:nrow(dftree),floor(0.7*nrow(dftree)))
 training_set_tree <- dftree[traintree,]
 testing_set_tree <- dftree[-traintree,]
@@ -189,7 +220,7 @@ text(regression.tree,pretty=0)
 cv.regressiontree=cv.tree(regression.tree)
 plot(cv.regressiontree$size,cv.regressiontree$dev,type="b")
 
-prune.regressiontree=prune.tree(regression.tree,best=8)
+prune.regressiontree=prune.tree(regression.tree,best=11)
 plot(prune.regressiontree)
 text(prune.regressiontree,pretty=0)
 
@@ -198,4 +229,300 @@ regression.test=dftree[-traintree, "y2_charges"]
 plot(yhat,regression.test)
 abline(0,1)
 mean((yhat-regression.test)^2)
+
+# Random Forest
+library(randomForest)
+set.seed(10)
+dftree<-df
+dftree$patient_id<-NULL
+dftree$mode_discharge_dispo<-NULL
+dftree$sex<-NULL
+dftree$race<-NULL
+dftree$dod_off<-NULL
+dftree$ethnicity<-NULL
+dftree$marital_status<-NULL
+dftree$y1chargesClusteredLog<-NULL
+dftree$y1chargesClustered<-NULL
+dftree$age_y2<-NULL
+dftree$y2chargesClusteredLog<-NULL
+dftree$y2chargesClustered <-NULL
+
+#dftree<-as.matrix(dftree)
+traintree <- sample(1:nrow(dftree),floor(0.7*nrow(dftree)))
+training_set_tree <- dftree[traintree,]
+testing_set_tree <- dftree[-traintree,]
+
+
+training = sample(1:nrow(dftree),nrow(dftree)/2)
+test.random=dftree[-training,]
+
+bag.df<-randomForest(y2_charges~.,data=dftree,subset=traintree,mtry=8,importance=TRUE)
+bag.df
+
+yhat.bag<-predict(bag.df,newdata=dftree[-training,])
+plot(yhat.bag,testing_set_tree)
+abline(0,1)
+
+
+#Jon's code not working.... tried revising, but still having issues
+#Create df for Decision Tree
+a <- model.matrix(race ~ as.factor(y2chargesClustered), df)
+a <- as.data.frame(a)
+colnames(a) <- c("intercept", "c2", "c3","c4","c5","c6","c7","c8","c9")
+a <- a[,c(2:8)]
+df2 <- cbind(df,a)
+df2$c1 <- ifelse(df2$y2chargesClustered == 1,1,0)
+
+#Cluster Numerical Columns
+#train$age_at_enc: 109 unique to 20
+trainmatrix<- data.matrix(df2)
+km.age <- kmeans(data.matrix(df2$age_y2), 20, nstart=50)
+# plot(data.matrix(trainmatrix[,7]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
+#NOTE: cluster #s change after each run, so double check!
+#Bind cluster categories w/ 'df2' table
+df2 <- cbind(df2, y2ageClustered = km.age$cluster)     
+
+#train$sumlos: 137 unique to 20
+trainmatrix<- data.matrix(df2)
+km.sumlos <- kmeans(data.matrix(df2$sumlos), 20, nstart=50)
+# plot(data.matrix(trainmatrix[,10]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
+#Bind cluster categories w/ 'df2' table
+df2 <- cbind(df2, sumlosClustered = km.sumlos$cluster)     
+
+#train$encountfreq: 147 unique to 20
+trainmatrix<- data.matrix(df2)
+km.encountfreq <- kmeans(data.matrix(df2$encountfreq), 20, nstart=50)
+# plot(data.matrix(trainmatrix[,11]), col = (km.charges$cluster+1), main = "Non-Transformed k=6", pch=20, cex=1)
+#Bind cluster categories w/ 'df2' table
+df2 <- cbind(df2, encountfreqClustered = km.encountfreq$cluster)
+
+#####CHOOSE CLUSTER TEST######
+train2 <- 1:nrow(df2)
+df.test <- df2[-train2,]
+c1 <- df2$c1;c2 <- df2$c2;c3 <- df2$c3;c4 <- df2$c4;c5 <- df2$c5;c6 <- df2$c6;
+######################
+#CHOOSE....WISELY...
+# cluster <- c1 ; cluster.test <-  c1[-train2]
+# cluster <- c2 ; cluster.test <-  c2[-train2]
+# cluster <- c3 ; cluster.test <-  c3[-train2]
+# cluster <- c4 ; cluster.test <-  c4[-train2]
+cluster <- c5 ; cluster.test <-  c5[-train2]
+# cluster <- c6 ; cluster.test <-  c6[-train2]
+#################
+
+#Mixed
+varsm <- sumlos + encountfreq + hospitalizations + num_ER_visits + mode_discharge_dispo + y1_charges + sex + race + marital_status + dod_off + age_y2 + y1_charges_log + y1chargesClusteredLog + y1chargesClustered
+
+#All Factor  
+varsf <- factor(sumlos) + factor(encountfreq) + factor(hospitalizations) + factor(num_ER_visits) + mode_discharge_dispo + factor(y1_charges) + sex + race + marital_status + dod_off + factor(age_y2) + factor(y1_charges_log) + factor(y1chargesClusteredLog) + factor(y1chargesClustered)
+
+
+
+
+######DTree#########
+#Regression Tree(method="anova")
+#Classification Tree(method="class")
+tree.charges <- rpart(y2chargesClustered ~ labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+mode_discharge_dispo+y1_charges+sex+race+ethnicity+marital_status+age_y2, 
+                      data= traintree,
+                      subset = training_set_tree,
+                      method = "class",                      #classification used
+                      parms = list(split = "information"),   #entropy/deviance used
+                      cp = 0)        #no size penalty
+
+tree.charges <- rpart(y2_charges ~ sex + race,
+                      data= pm5,
+                      subset = train_ids,
+                      method = "class",                      #classification used
+                      parms = list(split = "information"),   #entropy/deviance used
+                      cp = 0)  
+# summary(t.charges)  #show splits
+
+#Predict on Test set
+t.pred <- predict(t.charges, df.test, type = "class")
+table(t.pred, cluster.test)
+misclassificationRate <- (1045+2915) / 15970; misclassificationRate
+correct = 1-misclassificationRate; correct
+
+#Plot                                
+#show results
+result <- printcp(t.charges)
+min(result[,4])   #get CP from lowest xerror
+plotcp(t.charges, col = 2, upper = "size", cex=.1) #cross-validation results
+summary(t.charges)
+plot(t.charges, uniform=TRUE, main = "Year 2 Charges Prediction")
+text(t.charges, use.n=TRUE, all=TRUE, cex=0.8)
+#Alternative postcript plot
+# post(t.charges, file = "/project/msca/capstone3/plots/tree.ps", title = "Classification Tree)
+#Tree with lowest xerror with 0.7686 is a tree with nsplit = 48 length
+#However, 2nd lowest xerror has 0.76953 is nsplit=30. Let's try that! (cp = 1.365498e-03 )
+
+#Prune
+t.charges.prune <- prune(t.charges, cp =
+                           t.charges$cptable[which.min(t.charges$cptable[,"xerror"]),"CP"])
+
+#Plot Prunned Tree
+plot(t.charges.prune, uniform=TRUE)
+text(t.charges.prune, use.n=TRUE, all=TRUE, cex=0.8)
+
+#Predict on Test set
+t.pred <- predict(df2.prune, df.test, type = "class")
+table(t.pred, cluster.test)
+misclassificationRate <- (881+2980) / 15970; misclassificationRate
+correct = 1-misclassificationRate; correct
+
+plot(df2.prune, uniform = TRUE, compress = TRUE, margin=0.0001, main = "km 6 DT")
+text(df2.prune, use.n=TRUE,all=TRUE, fancy = TRUE, cex = 0.8)      
+
+
+
+########################
+#########STEP 7#########
+######RANDOM FOREST#####
+########################
+
+#Conduct Bagging, which is rf with m = p
+library(caret)
+inTraining = createDataPartition(df$y2chargesClustered, p = .75, list = F)
+training = df[inTraining,]
+testing = df[-inTraining,]
+
+set.seed(10)
+fml <- y2chargesClustered ~ 
+
+bag.df2 <- randomForest(fml, 
+                        data=df,
+                        subset = training,
+                        mtry = 3,        #Consider all predictors
+                        ntree= 50,
+                        importance = TRUE)
+bag.df2
+
+#Boosting
+# yhat.bag <- predict(bag.df2, newdata = df.test, type = "class")
+# df2.test <- df2[-train]
+# 
+# par(mfrow=c(1,1))
+# plot(yhat.bag, cluster.test)
+# abline(0,1)
+# mean((yhat.bag - cluster.test)^2)
+
+# importance(bag.df2)
+varImpPlot(bag.df2, main = "c6")
+
+#CV RF for variable selection
+charge_rfcv <- rfcv(train[,c(3,13,15,17:23)], train[,24], cv.folds=5)
+with(charge_rfcv, plot(n.var, error.cv, log="x", type = "o", lwd=2))
+
+
+#################
+#Random Forest
+#Adam's Code w/ Kappa Metric
+inTraining = createDataPartition(data$y2chargesClustered, p = .75, list = F)
+training = data[inTraining,]
+testing = data[-inTraining,]
+
+# means you do 12-fold CV and you do that 5 times.
+fitControl = trainControl(method = 'repeatedcv', number = 12, repeats = 5)
+
+gbmFit1 = train(y2chargesClustered ~ 
+                  factor(sumlos) + factor(encountfreq) + factor(hospitalizations) + factor(num_ER_visits) + mode_discharge_dispo + factor(y1_charges) + sex + race + marital_status + dod_off + factor(age_y2) + factor(y1_charges_log) + factor(y1chargesClusteredLog) + factor(y1chargesClustered),
+                data=training, trControl = fitControl, verbose = F)
+gbmFit1
+#################
+
+
+
+#SVM
+#Divide Data into train/test
+inTrain = createDataPartition(data$y2chargesClustered, p = .75, list = F)
+trainData <- data[inTrain,]
+testData  <- data[-inTrain,]
+#Select y-variable as vector
+train_y <- data$y2chargesClustered[inTrain]
+test_y  <- data$y2chargesClustered[-inTrain]
+prop.table(table(train_y))
+prop.table(table(test_y))
+
+#Remove variables w/ above 0.9 correlation
+# Linear models, neural networks and other models can have poor performance in these situations or may generate unstable solutions. Other models, such as classification or regression trees, might be resistant to highly correlated predictors, but multicollinearity may negatively affect interpretability of the model. For example, a classification tree may have good performance with highly correlated predictors, but the determination of which predictors are in the model is random.
+ncol(trainData)
+dataCorr <- cor(trainData[,c(2,3,4,5,7,14,15)])
+highCorr <- findCorrelation(dataCorr, 0.90)
+trainDescr <- trainData[, -highCorr]
+testDescr  <-  testData[, -highCorr]
+ncol(trainData)
+
+# Some models, such as partial least squares, neural networks and support vector machines, need the predictor variables to be centered and/or scaled.
+# The preProcess function can be used to determine values for predictor transformations us- ing the training set and can be applied to the test set or future samples. The function has an argument, method, that can have possible values of "center", "scale", "pca" and "spatialSign". The first two options provide simple location and scale transformations of each predictor (and are the default values of method). The predict method for this class is then used to apply the processing to new samples
+xTrans <- preProcess(trainData[,c(2,3,4,5,7,14,15)])   #Select only numeric variables
+trainData <- predict(xTrans, trainData[,c(2,3,4,5,7,14,15)])
+testData  <- predict(xTrans,  testData[,c(2,3,4,5,7,14,15)])
+
+# We can tune and build the SVM model using the code below.
+bootControl <- trainControl(number = 200)
+set.seed(2)
+svmFit <- train(trainData, train_y,
+                method = "svmRadial", tuneLength = 5,
+                trControl = bootControl, scaled = FALSE)
+# Model 1: sigma=0.0004329517, C=1e-01 #Models 2-5 also listed
+svmFit
+
+svmFit$finalModel
+
+
+
+
+#tune over the number of trees (i.e., boosting iterations), the complexity of the tree (indexed by interaction.depth) and the learning #rate (also known as shrinkage). As an example, a user could specify a grid of values to tune over using a data frame where the rows #correspond to tuning parameter combinations and the columns are the names of the tuning variables (preceded by a dot). For our #data, we will generate a grid of 50 combinations and use the tuneGrid argument to the train function to use these values.
+#we generated 200 bootstrap replications for each of the 50 candidate models, computed performance and selected the model with the largest accuracy.
+
+gbmGrid <- expand.grid(.interaction.depth = (1:5) * 2,
+                       .n.trees = (1:10)*25, 
+                       .shrinkage = .1)
+set.seed(2)
+gbmFit <- train(trainData, train_y,
+                method = "gbm", trControl = bootControl, verbose = FALSE,
+                bag.fraction = 0.5, tuneGrid = gbmGrid)
+
+
+
+# (a) A plot of the classification accuracy versus the tuning factors 
+(using plot(gbmFit))
+# (b) Similarly, a plot of the Kappa statistic profiles 
+(plot(gbmFit, metric = "Kappa"))
+# (c) A level plot of the accuracy values 
+(plot(gbmFit, plotType = "level"))
+# (d) Density plots of the 200 bootstrap estimates of accuracy and Kappa for the final model 
+(resampleHist(gbmFit))
+
+####PREDICTION OF NEW SAMPLES####
+predict(svmFit$finalModel, newdata = testData)[1:5]
+models <- list(svm = svmFit, gbm = gbmFit)
+testPred <- predict(models, newdata = testData)
+lapply(testPred, function(x) x[1:5])
+
+predValues <- extractPrediction(models, testX = testData, testY = test_y)
+testValues <- subset(predValues, dataType == "Test")
+head(testValues)
+table(testValues$model)
+nrow(testDescr)
+
+
+probValues <- extractProb(models, testX = testData, testY = test_y)
+testProbs <- subset(probValues, dataType == "Test")
+str(testProbs)
+
+####CHARACTERIZATING PERFORMANCE####
+svmPred <- subset(testValues, model == "svmRadial")
+confusionMatrix(svmPred$pred, svmPred$obs)
+
+svmProb <- subset(testProbs, model == "svmRadial")
+svmROC <- roc(svmProb$data$y2chargesClustered, svmProb$obs)
+str(svmROC)
+
+####PREDICTOR IMPORTANCE####
+gbmImp <- varImp(gbmFit, scale = FALSE)
+gbmImp
+plot(varImp(gbmFit), top = 20))
+
+#NN
 
