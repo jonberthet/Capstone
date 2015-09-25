@@ -25,7 +25,8 @@ patEncFin_cutoff <- merge(patEncFin_cutoff,charges_split[,c(1:3,6)],by=c("patien
 length(which(is.na(patEncFin_cutoff$above_cutoff)))
 # lots of NAs where we don't have charges data for patients. I remove these
 patEncFin_cutoff <- subset(patEncFin_cutoff,!is.na(above_cutoff))
-patEncFin_cutoff <- patEncFin_cutoff2
+save(patEncFin_cutoff,file="/project/msca/capstone3/patEncFin_cutoff.RData")
+
 # remove rows corresponding to year2
 patEncFin_y1 <- subset(patEncFin_cutoff,above_cutoff==0)
 
