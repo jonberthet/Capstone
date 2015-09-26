@@ -22,15 +22,15 @@ length(levels(as.factor(GrahamOut$Patient_Count)))#1
 length(levels(as.factor(patient_matrix$patient_id)))+length(levels(as.factor(GrahamOut$patient_id)))#52886
 
 # create table that merges patient primary icd9 codes from ChargesPOA and GrahamOut
-diag <- GrahamOut[,1:4]
+diag <- GrahamOut[,1:3]
 names(chargesPOA)
 head(chargesPOA$ICD.9.CM.Diagnosis...All)
-diag2 <- chargesPOA[which(chargesPOA$ICD.9.CM.Diagnosis...Sequence==1),1:4]
+diag2 <- chargesPOA[which(chargesPOA$ICD.9.CM.Diagnosis...Sequence==1),1:3]
 dim(diag)
 dim(diag2)
 diag2 <- diag2[,c(2,1,3)]
 names(diag2) <- names(diag)
-diag <- rbind(diag,diag2)
+diag <- rbind(diag,diag2)# warning, but it's ok
 dim(diag)
 dim(diag2)
 length(which(is.na(diag$patient_id)))#11623
@@ -38,7 +38,7 @@ nrow(diag)#382,700
 # remove duplicate rows
 diag <- unique(diag)
 head(diag)
-nrow(unique(diag))#372774 
+nrow(unique(diag))#372777 
 # the number of unique patients for which we have diagnosis is 45231
 # the number of unique patients in our existing patient matrix is 46559
 nrow(patient_matrix)
@@ -55,16 +55,16 @@ length(levels(diag$ICD_9_CM_Diagnosis_Principal))#5031
 load("/project/msca/capstone3/patEncFin_cutoff.RData")
 #merge in a cutoff_date column
 diag <- merge(patEncFin_cutoff[,c(1:2,16)],diag,all.y=T)
-
+dim(diag)#[1] 372377      4
 #for how many patient encounters do we have no date data?
 names(diag)
-length(diag[which(is.na(diag$above_cutoff))])
-sum(is.na(diag$above_cutoff))#No NAs
-#diag <- diag[which(!is.na(diag$cutoff_date)),]
-
+length(which(is.na(diag$above_cutoff)))#1305
+sum(is.na(diag$above_cutoff))#1305
+#diag <- diag[which(!is.na(diag$cutoff_date)),] # warning
+sum(is.na(diag$above_cutoff))#0
 # remove all encounters above the cutoff date
 diag <- subset(diag,above_cutoff==0)
-dim(diag)#[1] 187548      5
+dim(diag)#[1] 187548      4
 length(levels(diag$ICD_9_CM_Diagnosis_Principal))#5031
 # we want to summarize by patient the number of times that the person has had a particular ICD9 in year1
 # I'll try with a test_matrix that has single patient's encounter and diagnosis information
@@ -75,7 +75,7 @@ test_matrix <- rbind(test_matrix,test_matrix2)
 test_matrix$ICD_9_CM_Diagnosis_Principal <- droplevels(test_matrix$ICD_9_CM_Diagnosis_Principal)
 length(levels(test_matrix$ICD_9_CM_Diagnosis_Principal)) #5
 library(reshape2)
-dcast(test_matrix,formula=patient_id~ICD_9_CM_Diagnosis_Principal)
+dcast(test_matrix,formula=patient_id~ICD_9_CM_Diagnosis_Principal) # the warning is OK - ignore it.
 # that worked!
 # now we'll try it on the whole data set.
 
@@ -83,6 +83,8 @@ diag <- diag[,c(1:2,4)]
 diag2 <- dcast(diag,formula=patient_id~ICD_9_CM_Diagnosis_Principal)
 dim(diag2)#[1] 39509  4246
 head(diag2[,1:5])
+
+save(diag2, file="/project/msca/capstone3/diag2.RData")
 # merge diag2 to patient-level matrix by overlapping patient_id
 patient_matrix2 <- merge(patient_matrix,diag2)
 
