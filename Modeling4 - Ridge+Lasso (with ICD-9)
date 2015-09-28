@@ -1,4 +1,3 @@
-
 # load data sets
 load("/project/msca/capstone3/df1.RData") #BOX-COX-transformed
 load("/project/msca/capstone3/df_diag_all_num.RData") #UNTRANSFORMED(train_data,test_data)
@@ -23,7 +22,7 @@ plot(cv.out1)
 proc.time() - ptm 
 save(cv.out1,file="/project/msca/capstone3/ridgeCV1.RData")
 ptm <- proc.time()
-ridge1.pred <- predict(ridge1.mod,s=cv.out1$lambda.min,newx=x1_test)
+ridge1.pred <- predict(ridge1.mod,s=cv.out1$lambda.min,exact=T,newx=x1_test)
 save(ridge1.pred,file="/project/msca/capstone3/ridge1.pred.RData")
 proc.time() - ptm 
 
@@ -36,7 +35,7 @@ cv1.lasso  <- cv.glmnet(x1_train,y1_train,lambda=grid,alpha=1) #5.8-min runtime
 proc.time() - ptm 
 save(cv1.lasso,file="/project/msca/capstone3/cv1.lasso.RData") 
 plot(cv1.lasso)
-lasso1.pred <- predict(lasso1.mod,s=cv1.lasso$lambda.min, newx=x1_test) 
+lasso1.pred <- predict(lasso1.mod,s=cv1.lasso$lambda.min, exact=T,newx=x1_test) 
 save(lasso1.pred,file="/project/msca/capstone3/lasso1.pred.RData")
 
 # investigate the lasso coefficients that were NOT turned to 0.
@@ -53,9 +52,8 @@ par(mfrow=c(1,1))
 
 
 # compare to LM
-#lin.mod <- lm(y1_train~x1_train) #started at 1:34 P.M.
-#lm.pred <- predict(lin.mod,x1_test)
-lm.pred <- predict(ridge.mod,s=0,exact=T,x1_test) #setting s=0 makes it linear
+
+lm.pred <- predict(ridge1.mod,s=0,exact=T,x1_test) #setting s=0 makes it linear
 
 
 
@@ -64,19 +62,21 @@ ridge1.mse <- mean((ridge1.pred-y1_test)^2)
 lasso1.mse <- mean((lasso1.pred-y1_test)^2)
 lm.mse <- mean((lm.pred-y1_test)^2)
 
-ridge1.mse 
-lasso1.mse
+
+#compare models
 normalized_model_comparison <- data.frame(cbind(model=c("lasso","ridge","lm"),MSE=c(lasso1.mse,ridge1.mse,lm.mse)))
 normalized_model_comparison
 
-# TRANSFORM predicted cost values back to regular cost values.
+# TRANSFORM predicted cost values back to regular cost values. Raising to power 1/lambda undoes the box-cox transform
 lam <- 0.2 #value chosen by Box-Cox transformation. See last few lines of CreateTransformedData on GitHub.
-ridge1.pred_untransformed <- ridge1.pred^(1/lam) #undoes the box-cox transform
-lasso1.pred_untransformed <- lasso1.pred^(1/lam) # undoes the box-cox transform
+ridge1.pred_untransformed <- ridge1.pred^(1/lam) 
+lasso1.pred_untransformed <- lasso1.pred^(1/lam) 
+lm.pred_untransformed <- lm.pred^(1/lam)
 
 # Calculate MSE of actual cost predictions
 ridge1.mse_untransformed <- mean((ridge1.pred_untransformed-test_data$y2_charges)^2)
 lasso1.mse_untransformed <- mean((lasso1.pred_untransformed-test_data$y2_charges)^2)
+lm.mse_untransformed <- mean((lm.pred_untransformed-test_data$y2_charges)^2)
+detransformed_model_comparison <- data.frame(cbind(model=c("lasso","ridge","lm"),MSE=c(lasso1.mse_untransformed,ridge1.mse_untransformed,lm.mse_untransformed)))
+detransformed_model_comparison 
 
-detransformed_model_comparison <- data.frame(cbind(model=c("lasso","ridge"),MSE=c(lasso1.mse_untransformed,ridge1.mse_untransformed)))
-detransformed_model_comparison
