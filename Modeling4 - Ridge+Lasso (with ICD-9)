@@ -38,6 +38,13 @@ save(cv1.lasso,file="/project/msca/capstone3/cv1.lasso.RData")
 plot(cv1.lasso)
 lasso1.pred <- predict(lasso1.mod,s=cv1.lasso$lambda.min, newx=x1_test) 
 save(lasso1.pred,file="/project/msca/capstone3/lasso1.pred.RData")
+
+# investigate the lasso coefficients that were NOT turned to 0.
+lasso_coeffs <- predict(lasso1.mod,s=cv1.lasso$lambda.min,type="coefficients")
+length(which(lasso_coeffs!=0)) # of the >4000 variables, the coefficients of only 264 variables were not shrunk to 0.
+dimnames(lasso_coeffs)[[1]][which(lasso_coeffs!=0)] # these are the variables that were not shrunk to 0 by lasso.
+# we see that of thw >4000 ICD-9 diagnosis codes, only 230 were chosen to be included in the cross-validated lasso model.
+# compare the distributions of the data
 par(mfrow=c(1,3))
 hist(lasso1.pred,breaks=20)
 hist(y1_test,breaks=20)
@@ -46,8 +53,10 @@ par(mfrow=c(1,1))
 
 
 # compare to LM
-lin.mod <- lm(y1_train~x1_train)
-lm.pred <- predict(lin.mod,x1_test)
+#lin.mod <- lm(y1_train~x1_train) #started at 1:34 P.M.
+#lm.pred <- predict(lin.mod,x1_test)
+lm.pred <- predict(ridge.mod,s=0,exact=T,x1_test) #setting s=0 makes it linear
+
 
 
 # Calculate MSEs of transformed data
@@ -71,4 +80,3 @@ lasso1.mse_untransformed <- mean((lasso1.pred_untransformed-test_data$y2_charges
 
 detransformed_model_comparison <- data.frame(cbind(model=c("lasso","ridge"),MSE=c(lasso1.mse_untransformed,ridge1.mse_untransformed)))
 detransformed_model_comparison
-
