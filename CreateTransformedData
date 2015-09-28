@@ -31,8 +31,6 @@ diagTF[which(diag_matrix!=0)] <- TRUE
 
 ##### Part 2
 
-# train/test split
-train <- sample(1:nrow(df_num),floor(0.7*nrow(df_num)))
 
 # convert ICD-9 variables to numeric data frame
 class(diag_matrix[,1])
@@ -47,20 +45,26 @@ df_diag_all_num$age_y2 <- as.numeric(df_diag_all_num$age_y2)
 save(df_diag_all_num, file="/project/msca/capstone3/df_diag_all_num.RData")
 df_diag <- merge(df, diag2)
 save(df_diag,file="/project/msca/capstone3/df_diag.RData")
+
+# create data matrix with True/false ICD-9
 diagTF2 <- cbind(diag2$patient_id,as.data.frame(diagTF))
 names(diagTF2)[1] <- "patient_id"
 df_TF <- merge(df,diagTF2)
 save(df_TF,file="/project/msca/capstone3/df_TF.RData")
 
 
+
 # train/test split
+train <- sample(1:nrow(df_diag_all_num),floor(0.7*nrow(df_diag_all_num)))
 train_data <- df_diag_all_num[train,]
 test_data <- df_diag_all_num[-train,]
+save(train_data,test_data, file="/project/msca/capstone3/df_diag_all_num.RData")
+
 
 # separate the numeric variables from the non-numeric variables
 classes <- list()
-for (i in 1:ncol(df)) {
-  classes[i]<-class(df[,i])
+for (i in 1:ncol(df_diag_all_num)) {
+  classes[i]<-class(df_diag_all_num[,i])
 }
 
 # collect the numeric or integer-valued columns into a single data frame (plus patient_id number)
@@ -73,12 +77,13 @@ test_cat <- test_data[,-(which(classes=="numeric"))]
 
 
 #preprocess the numeric training data
-preProcessDF <- preProcess(train_num,method=c("BoxCox","center","scale")) 
+preProcessDF <- preProcess(train_num,method=c("BoxCox")) 
 # warning! lots of variables w/0 variances
-sum(train_transf[,15]) #this is one of those variables - see how sum is 0. Maybe this is fine.
-# these convert all values for those columns to 0!
+
 train_transf <- predict(preProcessDF,train_num)
 test_transf <- predict(preProcessDF,test_num)
+sum(train_transf[,15]) #this is one of those variables - see how sum is 0. Maybe this is fine.
+# these convert all values for those columns to 0!
 
 ### I'll create 2 main data sets 
 ### df1 has all numeric variables scaled.
@@ -100,7 +105,7 @@ df_TF_num_test <- df_TF_num[-train,]
 df_TF_cat_train <- df_TF_cat[train,]
 df_TF_cat_test <- df_TF_cat[-train,]
 #transform
-preProcessDF <- preProcess(df_TF_num_train,method=c("BoxCox","center","scale"))
+preProcessDF <- preProcess(df_TF_num_train,method=c("BoxCox"))
 train_transf2 <- predict(preProcessDF,df_TF_num_train)
 test_transf2 <- predict(preProcessDF,df_TF_num_test)
 
@@ -110,3 +115,9 @@ df2_test <- cbind(df_TF_cat_test,test_transf2)
 # save both data sets
 save(df1_train,df1_test,file="/project/msca/capstone3/df1.RData")
 save(df2_train,df2_test,file="/project/msca/capstone3/df2.RData")
+
+
+### Create data set with BoxCox-transformed numeric variable
+head(names(df),20)
+preProcessCost <- preProcess(as.matrix(df$y2_charges),method="BoxCox")
+names(preProcessCost)
