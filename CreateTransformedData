@@ -1,0 +1,150 @@
+# create transformed data tables
+
+
+# load data table & explore
+load("/project/msca/capstone3/patient_matrix2.RData")
+load("/project/msca/capstone3/patient_matrix_centered.RData")
+dim(patient_matrix)#46559    14
+load("/project/msca/capstone3/patient_matrixrevise.RData")
+dim(df)# 46559    22
+
+num_data <- as.matrix(apply(df[,1:6],2,as.numeric))
+colnames(num_data)<- names(df)[1:6]
+
+library(MASS)
+library(caret)
+
+# next step is to do pre-processing for running models
+# this includes doing the proper transformations
+# numerical variables need to be transformed, as well as centered and scaled
+load("/project/msca/capstone3/diag2.RData")
+load("/project/msca/capstone3/patient_matrixrevise.RData")
+# we slim down df to contain only the variables we need
+df <- df[,c(1:16)] #get rid of log-transformed and clustered variables.
+# separate the numeric variables from the non-numeric variables
+classes <- list()
+for (i in 1:ncol(df)) {
+  classes[i]<-class(df[,i])
+}
+# collect the numeric or integer-valued columns into a single data frame (plus patient_id number)
+df_num <- df[,c(which(classes=="numeric"|classes=="integer"))]
+# note - df_num does NOT contain patient_id numbers - this is intentional
+# collect categorical (non-numeric, non-integer-valued) columns into a separate data frame (plus patient_id number)
+df_cat <- df[,-(which(classes=="numeric"|classes=="integer"))]
+# collect icd-9 codes into a separate matrix - not sure how to deal with these values yet - consider converting to binary.
+#diag01 <- diag2
+#diag01[,2:ncol(diag2)][which(diag2[,2:ncol(diag2)]!=0)] <- 1
+# this took forever!!
+diagTF <- matrix(FALSE,nrow=nrow(diag2),ncol=(ncol(diag2)-1))
+colnames(diagTF) <- names(diag2)[2:ncol(diag2)]
+rownames(diagTF) <- diag2$patient_id
+diag_matrix <- as.matrix(diag2[,2:ncol(diag2)])
+colnames(diag_matrix) <- names(diag2)[2:ncol(diag2)]
+rownames(diag_matrix) <- diag2$patient_id
+diagTF[which(diag_matrix!=0)] <- TRUE 
+
+# validate:
+sum(diagTF[,1])#28
+sum(diag_matrix[,1])#36
+# great! this makes sense: diag_matrix should have a somewhat higher value for each column
+# that's because any integer values of diag_matrix (i.e., any number of times patients were diagnosed with that diagnosis)
+# should be reduced to a value of "1" by conversion to True-False
+
+
+# now go on to transform the numeric variables
+library(caret)
+df_num$age_y2 <- as.numeric(df_num$age_y2)
+set.seed(10)
+
+preProcessDF <- preProcess(df_num_train,method=c("BoxCox","center","scale")) 
+options(digits=10)
+trainBC <- predict(preProcessDF,df_num_train)
+testBC <- predict(preProcessDF,df_num_test)
+df_diag_num  <- cbind(diag2$patient_id,as.data.frame(diag_matrix_num))
+names(df_diag_num)[1] <- "patient_id"
+
+
+#transform the ICD-9 variables
+class(diag_matrix[,1])
+diag_matrix_num <- apply(diag_matrix,2,as.numeric)
+diag_matrix_train <- diag_matrix_num[train,]
+diag_matrix_test <- diag_matrix_num[-train,]
+##### BREAK - create merged table files ####
+df_diag_all_num <- merge(df,df_diag_num)
+df_diag_all_num$age_y2 <- as.numeric(df_diag_all_num$age_y2)
+save(df_diag_all_num, file="/project/msca/capstone3/df_diag_all_num.RData")
+df_diag <- merge(df, diag2)
+save(df_diag,file="/project/msca/capstone3/df_diag.RData")
+diagTF2 <- cbind(diag2$patient_id,as.data.frame(diagTF))
+names(diagTF2)[1] <- "patient_id"
+df_TF <- merge(df,diagTF2)
+save(df_TF,file="/project/msca/capstone3/df_TF.RData")
+#### done creating merged table files ####
+# things to try in preProcess fcn: pcaComp, center and scale #
+#use PCA to uncorrelate the predictors?
+# maybe use ICA to uncorrelate the predictors?
+# try models with both the scaled numeric ICD-9 codes as predictors, and the True-False ICD-9 codes
+
+
+# 4:30 P.M. next, perform the train-test split on df_diag_all_num 
+train <- sample(1:nrow(df_diag_all_num),floor(0.7*nrow(df_diag_all_num)))
+train_data <- df_diag_all_num[train,]
+test_data <- df_diag_all_num[-train,]
+# 4:40 P.M. then break the df_diag_all_num file into numeric and non-numeric components
+
+classes <- list()
+for (i in 1:ncol(df_diag_all_num)) {
+  classes[i]<-class(df_diag_all_num[,i])
+}
+# collect the numeric or integer-valued columns into a single data frame (plus patient_id number)
+train_num <- train_data[,c(which(classes=="numeric"))]
+# note - df_num does NOT contain patient_id numbers - this is intentional
+# collect categorical (non-numeric, non-integer-valued) columns into a separate data frame (plus patient_id number)
+train_cat <- train_data[,-(which(classes=="numeric"))]
+test_num <- test_data[,c(which(classes=="numeric"))]
+test_cat <- test_data[,-(which(classes=="numeric"))]
+
+#preprocess the numeric training data
+preProcessDF <- preProcess(train_num,method=c("BoxCox","center","scale")) 
+# warning! lots of variables w/0 variances
+sum(train_transf[,15]) #this is one of those variables - see how sum is 0. Maybe this is fine.
+# these convert all values for those columns to 0!
+train_transf <- predict(preProcessDF,train_num)
+test_transf <- predict(preProcessDF,test_num)
+
+#merge these back on to the categorical data
+
+# what to do with this code?
+df_diag_num  <- cbind(diag2$patient_id,as.data.frame(diag_matrix_num))
+names(df_diag_num)[1] <- "patient_id"
+
+### I'll create 2 main data sets for myself
+### df1 has all numeric variables scaled.
+df1_train <- cbind(train_cat,train_transf)
+df1_test <- cbind(test_cat,test_transf)
+
+### df2 has scaled non-ICD9 numeric variables, and TF for ICD9
+#break df_TF into categorical and numeric variabls
+classes <- list()
+for (i in 1:ncol(df_TF)) {
+  classes[i]<-class(df_TF[,i])
+}
+#df_TF_num <- df_TF[,c(which(classes=="numeric"|classes=="integer"))]
+df_TF_cat <- df_TF[,-(which(classes=="numeric"|classes=="integer"))]
+
+# break into test and train
+df_TF_num_train <- df_TF_num[train,]
+df_TF_num_test <- df_TF_num[-train,]
+df_TF_cat_train <- df_TF_cat[train,]
+df_TF_cat_test <- df_TF_cat[-train,]
+#transform
+preProcessDF <- preProcess(df_TF_num_train,method=c("BoxCox","center","scale"))
+train_transf2 <- predict(preProcessDF,df_TF_num_train)
+test_transf2 <- predict(preProcessDF,df_TF_num_test)
+
+df2_train  <- cbind(df_TF_cat_train,train_transf2)
+df2_test <- cbind(df_TF_cat_test,test_transf2)
+
+# save both data sets
+save(df1_train,df1_test,file="/project/msca/capstone3/df1.RData")
+save(df2_train,df2_test,file="/project/msca/capstone3/df2.RData")
