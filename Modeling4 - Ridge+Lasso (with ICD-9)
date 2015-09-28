@@ -1,209 +1,66 @@
-# Modeling 4 
-# Lasso and Ridge
 
-# Use the following to check code run time
-ptm <- proc.time()
-#enter the code you want to time here
-proc.time() - ptm
+# load data sets
+load("/project/msca/capstone3/df1.RData") #BOX-COX-transformed
+load("/project/msca/capstone3/df_diag_all_num.RData") #UNTRANSFORMED(train_data,test_data)
 
-# load data tables
-load("/project/msca/capstone3/df1.RData")
-load("/project/msca/capstone3/df2.RData")
-load("/project/msca/capstone3/df_diag.RData")
-load("/project/msca/capstone3/df_TF.RData")
+# create model matrices for TRANSFORMED data
+x1_train <- model.matrix(y2_charges~.,df1_train[,-1])
+x1_test <- model.matrix(y2_charges~.,df1_test[,-1])
+y1_train <- df1_train$y2_charges
+y1_test <- df1_test$y2_charges
 
-#convert tables to model matrices.
-x_train <- model.matrix(y2_charges~.,df1_train[,-1])
-x_test <- model.matrix(y2_charges~.,df1_test[,-1])
-y_train <- df1_train$y2_charges
-y_test <- df1_test$y2_charges
-
-x2_train <- model.matrix(y2_charges~.,df2_train[,-1])
-x2_test <- model.matrix(y2_charges~.,df2_test[,-1])
-y2_train <- df1_train$y2_charges
-y2_test <- df1_test$y2_charges
-
-set.seed(10)
-train <- sample(1:nrow(df_diag),floor(0.7*nrow(df_diag)))
-df_diag$age_y2 <- as.numeric(df_diag$age_y2)
-x3_train <- model.matrix(y2_charges~.,df_diag[train,-1])
-x3_test <- model.matrix(y2_charges~.,df_diag[-train,-1])
-y3_train <- df_diag$y2_charges[train]
-y3_test <- df_diag$y2_charges[-train]
-
-df_TF$age_y2 <- as.numeric(df_TF$age_y2)
-x4_train <- model.matrix(y2_charges~.,df_TF[train,-1])
-x4_test <- model.matrix(y2_charges~.,df_TF[-train,-1])
-y4_train <- df_TF$y2_charges[train]
-y4_test <- df_TF$y2_charges[-train]
-
-# STEP 2a: fit ridge regression model to df1 (data with transformed, centered ICD-9 frequency values)
-library(glmnet)
-grid <- 10^seq(3,-3,length=10)
-ptm <- proc.time()
-ridge.mod <- glmnet(x_train,y_train,alpha=0,lambda=grid, standardize=F) #~6 minutes
-proc.time() - ptm 
-set.seed(10)
-ptm <- proc.time()
-cv.out <- cv.glmnet(x_train,y_train,lambda=grid,alpha=0,standardize=F)
-plot(cv.out)
-proc.time() - ptm 
-cv.out$lambda.min #0.4641589
-save(cv.out,file="/project/msca/capstone3/ridgeCV1.RData")
-ptm <- proc.time()
-ridge.pred <- predict(ridge.mod,s=cv.out$lambda.min,newx=x_test)
-save(ridge.pred,file="/project/msca/capstone3/ridge.pred.RData")
-proc.time() - ptm 
-
-
-# STEP 2b: fit ridge regession model to df2 (data with T/F ICD-9)
-grid2 <- 10^seq(0,-6,length=10)
-ridge.mod2 <- glmnet(x2_train,y2_train,alpha=0,lambda=grid2, standardize=F) 
-set.seed(10)
-cv.out2 <- cv.glmnet(x2_train,y2_train,lambda=grid2,alpha=0,standardize=F)
-plot(cv.out2)
-save(cv.out2,file="/project/msca/capstone3/cv.out2.RData")
-ridge.pred2 <- predict(ridge.mod2,s=cv.out2$lambda.min,newx=x2_test)
-save(ridge.pred2,file="/project/msca/capstone3/ridge.pred2.RData")
-
-# Step 3a: fit lasso model to df1
-lasso.mod <- glmnet(x_train,y_train,alpha=1,lambda=grid, standardize=F) 
-cv.lasso1  <- cv.glmnet(x_train,y_train,lambda=grid,alpha=1,standardize=F) 
-save(cv.lasso1,file="/project/msca/capstone3/cv.lasso1.RData") 
-plot(cv.lasso1)
-lasso1.pred <- predict(lasso.mod,s=cv.lasso1$lambda.min, newx=x_test) 
-save(lasso1.pred,file="/project/msca/capstone3/lasso1.pred.RData")
-
-
-# Step 3b: fit lasso model to df2
-lasso.mod2 <- glmnet(x2_train,y2_train,alpha=1,lambda=grid, standardize=F)
-cv.lasso2 <- cv.glmnet(x2_train,y2_train,lambda=grid2,alpha=1,standardize=F)
-save(cv.lasso2,file="/project/msca/capstone3/cv.lasso2.RData")
-plot(cv.lasso2)
-lasso2.pred <- predict(lasso.mod2,s=cv.lasso2$lambda.min, newx=x2_test)
-save(lasso2.pred,file="/project/msca/capstone3/lasso2.pred.RData")
-
-# Transform the predictions of the normalized values back to cost values
-ridge.pred <- 
-ridge.pred2 <-
-lasso1.pred <-
-lasso2.pred <- 
-
-##### LASSO and RIDGE with UNTRANSFORMED data sets ####
-
-# STEP 3a: fit ridge regression model to df3
-grid3 <- 10^seq(3,8,length=10)
-ptm <- proc.time()
-ridge.mod3 <- glmnet(x3_train,y3_train,alpha=0,lambda=grid3)
-proc.time() - ptm 
-set.seed(10)
-ptm <- proc.time()
-cv.out3 <- cv.glmnet(x3_train,y3_train,lambda=grid3,alpha=0)#4.6 min
-proc.time() - ptm 
-plot(cv.out3)
-save(cv.out3,file="/project/msca/capstone3/ridgeCV3.RData")
-ptm <- proc.time()
-ridge.pred3 <- predict(ridge.mod3,s=cv.out3$lambda.min,newx=x3_test)
-proc.time() - ptm 
-save(ridge.pred3,file="/project/msca/capstone3/ridge.pred3.RData")
-
-
-# STEP 2b: fit ridge regession model to df2 (data with T/F ICD-9)
-ptm <- proc.time()
-ridge.mod4 <- glmnet(x4_train,y4_train,alpha=0,lambda=grid3)
-proc.time() - ptm 
-set.seed(10)
-ptm <- proc.time()
-cv.out4 <- cv.glmnet(x4_train,y4_train,lambda=grid3,alpha=0)#4.5 min
-proc.time() - ptm 
-plot(cv.out4)
-save(cv.out4,file="/project/msca/capstone3/ridgeCV4.RData")
-ptm <- proc.time()
-ridge.pred4 <- predict(ridge.mod4,s=cv.out4$lambda.min,newx=x4_test)
-proc.time() - ptm 
-save(ridge.pred4,file="/project/msca/capstone3/ridge.pred4.RData")
-
-
-# Step 3a: fit lasso model to df1
-grid4  <- 10^seq(-2,4,length=10)
-lasso.mod3 <- glmnet(x3_train,y3_train,alpha=1,lambda=grid4) 
-cv.lasso3  <- cv.glmnet(x3_train,y3_train,lambda=grid4,alpha=1) 
-save(cv.lasso3,file="/project/msca/capstone3/cv.lasso3.RData") 
-plot(cv.lasso3)
-lasso3.pred <- predict(lasso.mod3,s=cv.lasso3$lambda.min, newx=x3_test) 
-save(lasso3.pred,file="/project/msca/capstone3/lasso3.pred.RData")
-
-
-# Step 3b: fit lasso model to df2
-lasso.mod4 <- glmnet(x4_train,y4_train,alpha=1,lambda=grid4) 
-cv.lasso4  <- cv.glmnet(x4_train,y4_train,lambda=grid4,alpha=1) 
-save(cv.lasso4,file="/project/msca/capstone3/cv.lasso4.RData") 
-plot(cv.lasso4)
-lasso4.pred <- predict(lasso.mod4,s=cv.lasso4$lambda.min, newx=x4_test) 
-save(lasso4.pred,file="/project/msca/capstone3/lasso4.pred.RData")
-
-### NOW run on untransformed predictors, with log costs as output ###
-# create NEW data matrices: with untransformed predictors and y1/y2 costs LOG-transformed
-
-# create data matrices
-set.seed(10)
-train <- sample(1:nrow(df_diag),floor(0.7*nrow(df_diag)))
-df_diag$age_y2 <- as.numeric(df_diag$age_y2)
-x5_train <- model.matrix(y2_charges~.,df_diag[train,-1])
-x5_test <- model.matrix(y2_charges~.,df_diag[-train,-1])
-y5_train <- df_diag$y2_charges[train]
-y5_test <- df_diag$y2_charges[-train]
 
 # run ridge model
 library(glmnet)
 grid <- 10^seq(3,-3,length=10)
 ptm <- proc.time()
-ridge.mod5 <- glmnet(x5_train,y5_train,alpha=0,lambda=grid)
+ridge1.mod <- glmnet(x1_train,y1_train,alpha=0,lambda=grid) #28s runtime
 proc.time() - ptm 
 ptm <- proc.time()
 set.seed(10)
-cv.out5 <- cv.glmnet(x5_train,y5_train,lambda=grid,alpha=0)#12 min runtime
-plot(cv.out5)
+cv.out1 <- cv.glmnet(x1_train,y1_train,lambda=grid,alpha=0) #7min runtime
+plot(cv.out1)
 proc.time() - ptm 
-save(cv.out5,file="/project/msca/capstone3/ridgeCV5.RData")
+save(cv.out1,file="/project/msca/capstone3/ridgeCV1.RData")
 ptm <- proc.time()
-ridge5.pred <- predict(ridge.mod5,s=cv.out5$lambda.min,newx=x5_test)
-save(ridge5.pred,file="/project/msca/capstone3/ridge5.pred.RData")
+ridge1.pred <- predict(ridge1.mod,s=cv.out1$lambda.min,newx=x1_test)
+save(ridge1.pred,file="/project/msca/capstone3/ridge1.pred.RData")
 proc.time() - ptm 
 
+# Lasso
+ptm <- proc.time()
+lasso1.mod <- glmnet(x1_train,y1_train,alpha=1,lambda=grid) 
+proc.time() - ptm 
+ptm <- proc.time()
+cv1.lasso  <- cv.glmnet(x1_train,y1_train,lambda=grid,alpha=1) #5.8-min runtime
+proc.time() - ptm 
+save(cv1.lasso,file="/project/msca/capstone3/cv1.lasso.RData") 
+plot(cv1.lasso)
+lasso1.pred <- predict(lasso1.mod,s=cv1.lasso$lambda.min, newx=x1_test) 
+save(lasso1.pred,file="/project/msca/capstone3/lasso1.pred.RData")
+par(mfrow=c(1,3))
+hist(lasso1.pred,breaks=20)
+hist(y1_test,breaks=20)
+hist(ridge1.pred,breaks=20)
+par(mfrow=c(1,1))
 
-# LASSO
-lasso.mod5 <- glmnet(x5_train,y5_train,alpha=1,lambda=grid) 
-cv.lasso5  <- cv.glmnet(x5_train,y5_train,lambda=grid,alpha=1) 
-save(cv.lasso5,file="/project/msca/capstone3/cv.lasso5.RData") 
-plot(cv.lasso5)
-lasso5.pred <- predict(lasso.mod5,s=cv.lasso5$lambda.min, newx=x5_test) 
-save(lasso5.pred,file="/project/msca/capstone3/lasso5.pred.RData")
+# Calculate MSEs of transformed data
+ridge1.mse <- mean((ridge1.pred-y1_test)^2)
+lasso1.mse <- mean((lasso1.pred-y1_test)^2)
+
+ridge1.mse 
+lasso1.mse
+normalized_model_comparison <- data.frame(cbind(model=c("lasso","ridge"),MSE=c(lasso1.mse,ridge1.mse)))
+normalized_model_comparison
 
 # TRANSFORM predicted cost values back to regular cost values.
-ridge.pred5_untransformed <- exp(ridge5.pred)
-lasso5.pred_untransformed <- exp(lasso5.pred)
+lam <- 0.2 #value chosen by Box-Cox transformation. See last few lines of CreateTransformedData on GitHub.
+ridge1.pred_untransformed <- ridge1.pred^(1/lam) #undoes the box-cox transform
+lasso1.pred_untransformed <- lasso1.pred^(1/lam) # undoes the box-cox transform
 
-ridge.mse <- mean((ridge.pred-y_test)^2)
-ridge2.mse <- mean((ridge.pred2-y_test)^2)
-ridge3.mse <- mean((ridge.pred3-y_test)^2)
-ridge4.mse <- mean((ridge.pred4-y_test)^2)
-ridge5.mse <- mean((ridge.pred5_untransformed-y2_charges_untransformed[-train])^2)
+# Calculate MSE of actual cost predictions
+ridge1.mse_untransformed <- mean((ridge1.pred_untransformed-test_data$y2_charges)^2)
+lasso1.mse_untransformed <- mean((lasso1.pred_untransformed-test_data$y2_charges)^2)
 
-
-lasso1.mse <- mean((lasso1.pred-y_test)^2)
-lasso2.mse <- mean((lasso2.pred-y_test)^2)
-lasso3.mse <- mean((lasso3.pred-y_test)^2)
-lasso4.mse <- mean((lasso4.pred-y_test)^2)
-lasso5.mse <- mean((lasso5.pred_untransformed-y2_charges_untransformed[-train])^2)
-
-normalized_models <- c("ridge.mod", "ridge.mod2","lasso.mod","lasso.mod2")
-norm.models.test.mse <- c(ridge.mse,ridge2.mse,lasso1.mse,lasso2.mse)
-nonnormalized_models <- c("ridge.mod3","ridge.mod4","ridge.mod5","lasso.mod3","lasso.mod4","lasso.mod5")
-nonnorm.models.test.mse <- c(ridge3.mse,ridge4.mse,ridge5.mse,lasso3.mse,lasso4.mse,lasso5.mse)
-
-normalized_model_comparison <- data.frame(cbind(model=normalized_models,MSE=norm.models.test.mse))
-nonnormalized_model_comparison <- data.frame(cbind(model=nonnormalized_models,MSE=nonnorm.models.test.mse))
-normalized_model_comparison
-nonnormalized_model_comparison
-
+detransformed_model_comparison <- data.frame(cbind(model=c("lasso","ridge"),MSE=c(lasso1.mse_untransformed,ridge1.mse_untransformed)))
+detransformed_model_comparison
