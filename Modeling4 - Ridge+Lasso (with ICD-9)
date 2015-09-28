@@ -44,13 +44,20 @@ hist(y1_test,breaks=20)
 hist(ridge1.pred,breaks=20)
 par(mfrow=c(1,1))
 
+
+# compare to LM
+lin.mod <- lm(y1_train~x1_train)
+lm.pred <- predict(lin.mod,x1_test)
+
+
 # Calculate MSEs of transformed data
 ridge1.mse <- mean((ridge1.pred-y1_test)^2)
 lasso1.mse <- mean((lasso1.pred-y1_test)^2)
+lm.mse <- mean((lm.pred-y1_test)^2)
 
 ridge1.mse 
 lasso1.mse
-normalized_model_comparison <- data.frame(cbind(model=c("lasso","ridge"),MSE=c(lasso1.mse,ridge1.mse)))
+normalized_model_comparison <- data.frame(cbind(model=c("lasso","ridge","lm"),MSE=c(lasso1.mse,ridge1.mse,lm.mse)))
 normalized_model_comparison
 
 # TRANSFORM predicted cost values back to regular cost values.
@@ -64,3 +71,4 @@ lasso1.mse_untransformed <- mean((lasso1.pred_untransformed-test_data$y2_charges
 
 detransformed_model_comparison <- data.frame(cbind(model=c("lasso","ridge"),MSE=c(lasso1.mse_untransformed,ridge1.mse_untransformed)))
 detransformed_model_comparison
+
