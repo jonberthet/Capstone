@@ -118,6 +118,8 @@ save(df2_train,df2_test,file="/project/msca/capstone3/df2.RData")
 
 
 ### Create data set with BoxCox-transformed numeric variable
-head(names(df),20)
-preProcessCost <- preProcess(as.matrix(df$y2_charges),method="BoxCox")
-names(preProcessCost)
+head(names(train_data),20)
+preProcessCost <- preProcess(as.matrix(train_data$y2_charges),method="BoxCox")
+preProcessCost
+# lambda=0.2
+
