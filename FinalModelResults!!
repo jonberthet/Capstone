@@ -1,0 +1,30 @@
+
+#Outline
+1. Load Packages
+2. Load Pre-Processed & Transformed Data
+3. Clustering charges & population groups
+4. Linear Regression
+5. Data Mining to Determine Significant Variables
+   a) Regularization (Lasso, Ridge)
+   b) Supervised Learning (RF)
+   c) Unsupervised Learning (PCA)
+6. Data Mining to Predict costs
+   a) Supervised Learning (RF, Decision Tree, NN)
+   b) Regularization
+   c) Risk Process?
+
+#Load packages
+library("sqldf"); library("dplyr"); library("ggplot2"); library("plyr")
+library("rpart"); library("randomForest"); library("caret"); library("mlbench"); library("gbm")
+
+#Load Data
+load("/project/msca/capstone3/df1.RData") #BOX-COX-transformed
+
+#Clustering Charges
+
+
+#Clustering Population
+
+
+
+
