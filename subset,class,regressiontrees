@@ -3,6 +3,11 @@ library(corrplot)
 library(tree)
 
 
+load(file="/project/msca/capstone3/df_diag.RData")
+load(file="/project/msca/capstone3/df_TF.RData")
+load(file="/project/msca/capstone3/df1.RData")
+load(file="/project/msca/capstone3/df2.RData")
+load(file="/project/msca/capstone3/patient_matrix_centered.RData")
 load(file="/project/msca/capstone3/patient_matrixrevise.RData")
 #1: Clean Data
 patient_matrix<-data.frame(patient_matrix)
@@ -29,7 +34,7 @@ levels(patient_matrix$marital_status)
 table(patient_matrix$mode_discharge_dispo)
 
 df<-df[1:22]
-save(df, file="/project/msca/capstone3/patient_matrixrevise.RData")
+#save(df, file="/project/msca/capstone3/patient_matrixrevise.RData")
 
 
 #2: Subset Patients
@@ -78,8 +83,8 @@ set.seed(10)
 km.y1charges.log <- kmeans(data.matrix(df[,17]), centers = 4, nstart=2)
 km.y2charges.log <- kmeans(data.matrix(df[,18]), centers = 4, nstart=2)
 
-km.y1charges <- kmeans(data.matrix(df[,9]), centers =9, nstart=2)
-km.y2charges <- kmeans(data.matrix(df[,10]), centers = 9, nstart=2)
+km.y1charges <- kmeans(data.matrix(df[,9]), centers =3, nstart=2)
+km.y2charges <- kmeans(data.matrix(df[,10]), centers = 3, nstart=2)
 length(km.y1charges.log$cluster);length(km.y2charges.log$cluster)
 length(km.y1charges$cluster);length(km.y2charges$cluster) 
 #NOTE: cluster #s change after each run, so double check!
@@ -92,10 +97,12 @@ data5 <- cbind(data4, y2chargesClustered = km.y2charges$cluster)
 ############
 #FINAL DATA:
 df <- data5
+#df<-df[1:18]
 save(df, file="/project/msca/capstone3/patient_matrixrevise.RData")
 #Create Charge Cluster data
 
 #4: Apply Test and Train on the subests
+set.seed(10)
 train <- sample(1:nrow(df),floor(0.7*nrow(df)))
 training_set <- df[train,]
 testing_set <- df[-train,]
@@ -108,55 +115,56 @@ c6 <- training_set[training_set$y2chargesClustered == 6,]
 c7 <- training_set[training_set$y2chargesClustered == 7,]
 c8 <- training_set[training_set$y2chargesClustered == 8,]
 c9 <- training_set[training_set$y2chargesClustered == 9,]
+km.y2charges$centers
 #Build linear regressions
-fulllm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=training_set)
+fulllm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2, data=training_set)
 summary(fulllm)
 fulllm.MSE <- mean((fulllm$fitted.values - training_set$y2_charges_log)^2)
 pred<-predict(fulllm, newdata=testing_set)
 summary(pred)
 
 
-c1lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c1)
+c1lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2, data=c1)
 summary(c1lm)
 c1.MSE <- mean((c1lm$fitted.values - c1$y2_charges_log)^2)
 
-c2lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c2)
+c2lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2, data=c2)
 summary(c2lm)
 c2.MSE <- mean((c2lm$fitted.values - c2$y2_charges_log)^2)
 
-c3lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c3)
+c3lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2, data=c3)
 summary(c3lm)
 c3.MSE <- mean((c3lm$fitted.values - c3$y2_charges_log)^2)
 
-c4lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c4)
+c4lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2, data=c4)
 summary(c4lm)
 c4.MSE <- mean((c4lm$fitted.values - c4$y2_charges_log)^2)
 
-c5lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c5)
+c5lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2, data=c5)
 summary(c5lm)
 c5.MSE <- mean((c5lm$fitted.values - c5$y2_charges_log)^2)
 
-c6lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c6)
+c6lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2, data=c6)
 summary(c6lm)
 c6.MSE <- mean((c6lm$fitted.values - c6$y2_charges_log)^2)
 
-c7lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c7)
+c7lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2, data=c7)
 summary(c7lm)
 c7.MSE <- mean((c7lm$fitted.values - c7$y2_charges_log)^2)
 
-c8lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c8)
+c8lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2, data=c8)
 summary(c8lm)
 c8.MSE <- mean((c8lm$fitted.values - c8$y2_charges_log)^2)
 
-c9lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2+y1chargesClusteredLog+y2chargesClusteredLog+y1chargesClustered+y2chargesClustered, data=c9)
+c9lm<-lm(y2_charges_log~labfreq+medfreq+sumlos+encountfreq+hospitalizations+num_ER_visits+y1_charges+age_y2, data=c9)
 summary(c9lm)
 c9.MSE <- mean((c9lm$fitted.values - c9$y2_charges_log)^2)
 
 #Compare Linear Models
-fulllm.MSE;c1.MSE;c2.MSE;c3.MSE;c4.MSE;c5.MSE;c6.MSE;c7.MSE;c8.MSE;c9.MSE
+fulllm.MSE;c1.MSE;c2.MSE;c3.MSE
 
 AIC(fulllm)
-AIC(c1lm);AIC(c2lm);AIC(c3lm);AIC(c4lm);AIC(c5lm);AIC(c6lm);AIC(c7lm);AIC(c8lm);AIC(c9lm)
+AIC(c1lm);AIC(c2lm);AIC(c3lm)
 
 
 #Decision Trees
@@ -166,8 +174,13 @@ dftree$dod_off<-NULL
 dftree$y2_charges_log <-NULL
 dftree$y2chargesClustered   <-NULL 
 dftree$y2chargesClusteredLog<-NULL
+dftree$y1_charges_log <-NULL
+dftree$y1chargesClusteredLog <-NULL
+dftree$y1chargesClustered <-NULL
 
-High<-ifelse(dftree$y2_charges<=1000000,"No","Yes")  
+
+set.seed(10)
+High<-ifelse(dftree$y2_charges<=100000,"No","Yes")  
 dftree=data.frame(dftree, High)
 traintree <- sample(1:nrow(dftree),floor(0.7*nrow(dftree)))
 training_set_tree <- dftree[traintree,]
@@ -183,7 +196,7 @@ tree.train<-tree(High~.-y2_charges,dftree,subset=traintree)
 tree.pred<-predict(tree.train,testing_set_tree, type="class")
 table(tree.pred, High.test)
 
-Misclassrate<- (10893 +23)/(10893+23+3052)
+Misclassrate<- (12878 +466)/(12878 +466+434+190)
 Misclassrate
 #Prune
 set.seed(10)
@@ -195,24 +208,36 @@ par(mfrow=c(1,2))
 plot(cv.tree$size,cv.tree$dev, type="b")
 plot(cv.tree$k,cv.tree$dev, type="b") 
 
-prune.tree=prune.misclass(tree.train,best=2) #Can adjust node size
+prune.tree=prune.misclass(tree.train,best=3) #Can adjust node size
 plot(prune.tree)
 text(prune.tree,pretty=0)
 
 tree.pred=predict(prune.tree,testing_set_tree, type="class")
 table(tree.pred,High.test)
 
-Misclassrateprune<-(9874 + 23)/(9874 + 23+4071)
+Misclassrateprune<-(12878 + 466)/(12878 + 466+434+190)
 Misclassrateprune
+
+#
+
 
 #Regression Tree
 library(MASS)
-
+set.seed(10)
+dftree<-df
+dftree$dod_off<-NULL
+dftree$y2_charges  <-NULL 
+dftree$y2chargesClustered   <-NULL 
+dftree$y2chargesClusteredLog<-NULL
+dftree$y1_charges_log <-NULL
+dftree$y1chargesClusteredLog <-NULL
+dftree$y1chargesClustered <-NULL
+set.seed(10)
 traintree <- sample(1:nrow(dftree),floor(0.7*nrow(dftree)))
 training_set_tree <- dftree[traintree,]
 testing_set_tree <- dftree[-traintree,]
 set.seed(10)
-regression.tree<-tree(y2_charges~.,dftree,subset=traintree)
+regression.tree<-tree(y2_charges_log~.,dftree,subset=traintree)
 summary(regression.tree)
 
 plot(regression.tree)
@@ -220,12 +245,54 @@ text(regression.tree,pretty=0)
 cv.regressiontree=cv.tree(regression.tree)
 plot(cv.regressiontree$size,cv.regressiontree$dev,type="b")
 
-prune.regressiontree=prune.tree(regression.tree,best=11)
+prune.regressiontree=prune.tree(regression.tree,best=8)
 plot(prune.regressiontree)
 text(prune.regressiontree,pretty=0)
 
 yhat=predict(regression.tree,newdata=testing_set_tree)
-regression.test=dftree[-traintree, "y2_charges"]
+regression.test=dftree[-traintree, "y2_charges_log"]
+plot(yhat,regression.test)
+abline(0,1)
+mean((yhat-regression.test)^2)
+
+
+#regression tree on df1
+library(MASS)
+set.seed(10)
+diagtreeicd<-rbind(df1_test,df1_train)
+train<-sample(1:nrow(diagtreeicd),nrow(diagtreeicd)*0.7)
+test<-diagtreeicd[-train,"y2_charges"]
+tdata<-diagtreeicd[,-1]
+#diagtreeicd$y2_charges_log<-log(diagtreeicd$y2_charges)
+#diagtreeicd$dod_off<-NULL
+
+#set.seed(10)
+#x1_train<-model.matrix(y2_charges~.,df1_train[,-1])
+#x1_test<-model.matrix(y2_charges~.,df1_test[,-1])
+#y1_train<-df1_train$y2_charges
+#y1_test<-df1_test$y2_charges
+#icdtrain<-cbind(x1_train,y1_train)
+#icdtest<-cbind(x1_test,y1_test)
+#icddata<-rbind(icdtrain,icdtest)
+#icddatadf<-as.data.frame(icddata)
+#traintree_diagicd <- sample(1:nrow(icddatadf),floor(0.7*nrow(icddatadf)))
+#training_set_tree_diagicd <- diagtreeicd[traintree_diagicd,]
+#testing_set_tree_diagicd <- diagtreeicd[-traintree_diagicd,]
+
+regression.tree<-tree(y2_charges~.,tdata,subset=train)
+summary(regression.tree)
+
+plot(regression.tree)
+text(regression.tree,pretty=0)
+cv.regressiontree=cv.tree(regression.tree)
+plot(cv.regressiontree$size,cv.regressiontree$dev,type="b")
+
+prune.regressiontree=prune.tree(regression.tree,best=8)
+plot(prune.regressiontree)
+text(prune.regressiontree,pretty=0)
+
+yhat=predict(regression.tree,newdata=testing_set_tree)
+regression.test=dftree[-traintree, "y2_charges_log"]
 plot(yhat,regression.test)
 abline(0,1)
 mean((yhat-regression.test)^2)
@@ -246,6 +313,8 @@ dftree$y1chargesClustered<-NULL
 dftree$age_y2<-NULL
 dftree$y2chargesClusteredLog<-NULL
 dftree$y2chargesClustered <-NULL
+dftree$y1_charges_log<-NULL
+dftree$y2_charges_log<-NULL
 
 #dftree<-as.matrix(dftree)
 traintree <- sample(1:nrow(dftree),floor(0.7*nrow(dftree)))
@@ -253,16 +322,41 @@ training_set_tree <- dftree[traintree,]
 testing_set_tree <- dftree[-traintree,]
 
 
-training = sample(1:nrow(dftree),nrow(dftree)/2)
-test.random=dftree[-training,]
+#training = sample(1:nrow(dftree),nrow(dftree)/2)
+#test.random=dftree[-training,]
 
-bag.df<-randomForest(y2_charges~.,data=dftree,subset=traintree,mtry=8,importance=TRUE)
+bag.df<-randomForest(y2_charges~.,data=dftree,subset=traintree,mtry=7,importance=TRUE)
 bag.df
 
-yhat.bag<-predict(bag.df,newdata=dftree[-training,])
-plot(yhat.bag,testing_set_tree)
-abline(0,1)
+yhat.bag<-predict(bag.df,newdata=dftree[-traintree,])
+#plot(yhat.bag,testing_set_tree)
+#abline(0,1)
+mean((yhat.bag-testing_set_tree)^2)
 
+
+
+
+#Neural net
+nnmatrix<-df_diag
+nnmatrix$patient_id<-NULL
+nnmatrix$
+library('neuralnet')
+
+set.seed(10) 
+
+head(nnmatrix)
+summary(nnmatrix)
+dim(nnmatrix)
+names(nnmatrix)
+attach(nnmatrix) # this means we can call the variables w/o nnmatrix$ prefix-
+trainnn <- sample(1:nrow(nnmatrix),floor(0.7*nrow(nnmatrix)))
+training_set_nn<- dftree[trainnn,]
+testing_set_nn<- dftree[-trainnn,]
+## build the neural network (NN)
+
+diagnet1 <- neuralnet(y2_charges~ ., training_set_nn, hidden = 4, lifesign = "full", linear.output = FALSE, threshold = 0.1, data=nnmatrix)
+
+diagnet2 <- neuralnet(y2_charges~., trainset, hidden = 4, stepmax = 10000, linear.output = FALSE,threshold =.3)
 
 #Jon's code not working.... tried revising, but still having issues
 #Create df for Decision Tree
@@ -525,4 +619,3 @@ gbmImp
 plot(varImp(gbmFit), top = 20))
 
 #NN
-
