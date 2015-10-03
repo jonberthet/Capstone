@@ -73,8 +73,8 @@ patfin <- patfin[-which(duplicated(patfin$patient_id)==TRUE),]
 
 # first, merge in the 2 versions of the inpatient patEncFin tables (patEncFin0 & patEncFin1)
 patEncFin0 <- subset(patEncFin0, select=c(patient_id,encounter_id,enc_eio,enc_fin_class))
-patEncFin1 <- subset(patEncFin1, select=-c(start_date_offset,end_date_offset) #remove columns not found in patEncFin2
-patEncFin01 <- merge(,patEncFin1,by=c("patient_id","encounter_id"))
+patEncFin1 <- subset(patEncFin1, select=-c(start_date_offset",end_date_offset)) #remove columns not found in patEncFin2
+patEncFin01 <- merge(patEncFin0,patEncFin1,by=c("patient_id","encounter_id"))
 
 
 #
