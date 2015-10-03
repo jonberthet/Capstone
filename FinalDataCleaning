@@ -32,11 +32,11 @@ icd9Dx2 <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_93
 icd9Proc2  <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_icd9_proc.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
 icd9ProbList2 <- read.table("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_icd9_prob_list.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
 flow2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_flow.txt", sep = "|", header = TRUE, fileEncoding = "UCS-2LE")
-labs2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_labs.txt",sep="|",quote="",header=T,fileEncoding="UTF-16LE") fileEncoding = "UCS-2LE")
+labs2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_labs.txt",sep="|",quote="",header=T,fileEncoding="UTF-16LE")
 medsOut2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_meds_out.txt",sep="|",quote="",header=T,fileEncoding="UCS-2LE")
 
 # Step 1d: save all tables
-save(list=ls(all=TRUE),file="/project/msca/capstone3/all_tables.RData")
+#save(list=ls(all=TRUE),file="/project/msca/capstone3/all_tables.RData")
 
 # Step 1e: save very large files separately
 #medsIn is really big and will be loaded and stored separately
