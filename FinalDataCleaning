@@ -11,6 +11,7 @@ library(readxl)
 
 # Step 1b: load inpatient tables (except medsIn)
 patfin1 <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_pat_fin.txt", sep="|", header=T)
+patEncFin0 <-read.delim("/project/msca/data/uchicagomed/Capstone/dr_9389_pat_enc_fin2.txt", sep = "|", header=TRUE, fileEncoding = "UCS-2LE")
 patEncFin1 <- read_excel("/project/msca/capstone3/Copy\ of\ dr_9389_pat_enc_fin2.xlsx")
 charges <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges.txt", sep = "|", header = TRUE)
 chargesPOA <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges_POA.txt", sep = "|", header = TRUE)
@@ -69,6 +70,14 @@ patfin <- patfin[-which(duplicated(patfin$patient_id)==TRUE),]
 #patfin is now clean
 
 #patEncFin
+
+# first, merge in the 2 versions of the inpatient patEncFin tables (patEncFin0 & patEncFin1)
+patEncFin0 <- subset(patEncFin0, select=c(patient_id,encounter_id,enc_eio,enc_fin_class))
+patEncFin1 <- subset(patEncFin1, select=-c(start_date_offset,end_date_offset) #remove columns not found in patEncFin2
+patEncFin01 <- merge(,patEncFin1,by=c("patient_id","encounter_id"))
+
+
+#
 names(patEncFin2) <- names(patEncFin1)
 patEncFin <- rbind(patEncFin1, patEncFin2)
 rm(patEncFin1)
