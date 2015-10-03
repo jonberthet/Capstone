@@ -11,8 +11,7 @@ library(readxl)
 
 # Step 1b: load inpatient tables (except medsIn)
 patfin1 <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_pat_fin.txt", sep="|", header=T)
-#patEncFin1 <- read_excel("/project/msca/capstone3/Copy\ of\ dr_9389_pat_enc_fin2.xlsx")
-# note this is updated with new patEncFin data as of October 3, 2015
+patEncFin1 <- read_excel("/project/msca/capstone3/Copy\ of\ dr_9389_pat_enc_fin2.xlsx")
 charges <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges.txt", sep = "|", header = TRUE)
 chargesPOA <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges_POA.txt", sep = "|", header = TRUE)
 chargesAdmitPriority <- read.table("/project/msca/data/uchicagomed/Capstone/dr_9389_charges_admit_priority.txt", sep = "|", header = TRUE)
