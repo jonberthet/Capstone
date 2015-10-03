@@ -48,8 +48,8 @@ medsOut2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9
 #rm(medsIn)
 
 
-### Step 2: Append inpatient+outpatient files ###
-# load("/project/msca/capstone3/all_tables.RData")
+### STEP 2: Append inpatient+outpatient files ###
+
 # for each file, I do the following:
 # load both new and old data
 # make column names consistent
@@ -59,6 +59,10 @@ medsOut2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9
 # write the combined table as an RData file
 # save all the variables as an RData file
 
+# Step 2a: load the files from Step 1.
+# load("/project/msca/capstone3/all_tables.RData")
+
+# Step 2b: make inpatient+outpatient files consistent, remove duplicates, and rbind them
 #patfin
 patfin <- rbind(patfin1, patfin2)
 rm(patfin1)
@@ -85,14 +89,12 @@ rm(patEncFin1)
 rm(patEncFin01)
 rm(patEncFin2)
 nrow(patEncFin)
---------------------------------------------------------------------------------------------------------
 length(unique(patEncFin$encounter_id))
-nrow(unique(patEncFin[,1:2])) 
-#make sure the rows are identical before deleting one of them
-patEncFin[which(patEncFin$encounter_id==patEncFin$encounter_id[which(duplicated(patEncFin$encounter_id)==TRUE)]),]
-#only difference is admit date; I assume this is an error and remove the later admit date
-patEncFin <- patEncFin[-which(patEncFin$encounter_id==patEncFin$encounter_id[which(duplicated(patEncFin$encounter_id)==TRUE)]),]
-nrow(patEncFin)==nrow(unique(patEncFin[,1:2])) # no more duplicates
+nrow(unique(patEncFin[,1:2])) # no duplicates
+#if duplicates are present, run the next 2 lines to view & fix them
+#patEncFin[which(patEncFin$encounter_id==patEncFin$encounter_id[which(duplicated(patEncFin$encounter_id)==TRUE)]),]
+#patEncFin <- patEncFin[-which(patEncFin$encounter_id==patEncFin$encounter_id[which(duplicated(patEncFin$encounter_id)==TRUE)]),]
+nrow(patEncFin)==nrow(unique(patEncFin[,1:2])) # no duplicates
 
 
 #flow
@@ -105,7 +107,7 @@ rm(flow2)
 names(cptProc1)==names(cptProc2)
 names(cptProc1)
 names(cptProc2)
-#cptProc2 is actually just patfin. We will exclude cptProc tables from analysis for now.
+#cptProc2 is actually just patfin. We will exclude cptProc tables from analysis.
 rm(cptProc1)
 rm(cptProc2)
 
@@ -125,7 +127,7 @@ icd9Proc <- rbind(icd9Proc1,icd9Proc2)
 rm(icd9Proc1)
 rm(icd9Proc2)
 nrow(icd9Proc) #69717 rows
-nrow(unique(icd9Proc[,1:2])) #22695
+nrow(unique(icd9Proc[,1:2])) #22695 unique patient/encounter combinations
 
 #icd9ProbList
 names(icd9ProbList1)
@@ -148,10 +150,10 @@ rm(medsOut2)
 
 #charges_all
 #clean GrahamOut
-GrahamOut <- GrahamOut[-(grep('NULL',GrahamOut$PATIENT_ID)),]
-nrow(unique(GrahamOut[,1:2]))
-sum(duplicated(GrahamOut[,1:2]))
-names(GrahamOut)
+GrahamOut <- GrahamOut[-(grep('NULL',GrahamOut$PATIENT_ID)),] #remove rows with absent patient_ids
+nrow(unique(GrahamOut[,1:2])) #371072 patient encounters are represented
+sum(duplicated(GrahamOut[,1:2])) # no duplicates
+names(GrahamOut) # the way the col names are written is slightly different between GrahamOut & chargesPOA
 #[1] "PATIENT_ID"                        "encounter_ID"                     
 #[3] "ICD_9_CM_Diagnosis_Principal"      "ICD_9_CM_Diagnosis_Principal_Name"
 #[5] "Patient_Count"                     "Charges"                          
@@ -161,9 +163,8 @@ names(GrahamOut)[1] <- "patient_id"
 names(GrahamOut)[2] <- "encounter_id"
 names(chargesPOA)
 nrow(chargesPOA)
-nrow(chargesPOA[(grep('NULL',chargesPOA$Encounter_ID)),])
-nrow(chargesPOA[(grep('NULL',chargesPOA$Patient_ID)),])
-names(chargesAdmitPriority)
+nrow(chargesPOA[(grep('NULL',chargesPOA$Encounter_ID)),]) #no NULL encounter_ID vals in chargesPOA
+nrow(chargesPOA[(grep('NULL',chargesPOA$Patient_ID)),]) #no NULL patient_ID vals in chargesPOA
 # GrahamOut
 # create a charges table with all patient encounters
 # utilization does not contain diagnosis information
@@ -176,19 +177,16 @@ charges_all <- rbind(charges_old,charges_new)
 rm(charges_old)
 rm(charges_new)
 dim(charges_all)
-nrow(unique(charges_all[,1:2]))
+nrow(unique(charges_all[,1:2])) # appears to be 1 duplicate
 charges_all[(duplicated(charges_all[,1:2])),1:2]
-charges_all[which((charges_all$patient_id==1976119) & (charges_all$encounter_id==7385344)),]
-charges_all <- charges_all[-10299,]
-charges_all[(duplicated(charges_all[,1:2])),1:2]
-# no more duplicated rows
-names(charges_all)
-rm(charges)
-rm(charges)
+charges_all[which((charges_all$patient_id==1976119) & (charges_all$encounter_id==7385344)),] #duplicates are identical
+charges_all <- charges_all[-10299,] # remove the duplicate
+charges_all[(duplicated(charges_all[,1:2])),1:2] # no more duplicated rows
 
-save(list=ls(all=TRUE),file="/project/msca/capstone3/all_tables_appended.RData")
-#----------------
-### STEP 3: Create Time Split
+# Save the tables. This line has been run, so you just need to re-run it if you've modified any of the above.
+# save(list=ls(all=TRUE),file="/project/msca/capstone3/all_tables_appended.RData")
+
+### STEP 3: Create Time Split ###
 
 # load libraries & files
 library(plyr)
