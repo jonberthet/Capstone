@@ -3,7 +3,8 @@
 # this step loads all tables and stores them as RData files in capstone3. medsIn is stored separately.
 # STEP 2: Append inpatient+outpatient files
 # this step formats tables so  inpatient + outpatient can be appended, and appends.
-# Step 3: Create time split
+# STEP 3: Define the time split for each patient
+# STEP 4: Create the patient-level matrix
 
 ### STEP 1: Read in tables ###
 
@@ -272,4 +273,96 @@ admissions$charges_y2[which(is.na(admissions$charges_y2))] <- 0
 patient_cutoff_charges <- admissions[,c(which(names(admissions)=="patient_id"),which(names(admissions)=="cutoff_date"),which(names(admissions)=="charges_y1"),which(names(admissions)=="charges_y2"))]
 save(patient_cutoff_charges,file="/project/msca/capstone3/patient_cutoff_charges.RData")
 
-### STEP 4: 
+### STEP 4: Create Patient-Level matrix (centered) 
+
+#STEP 4a: remove non-year-1 encounter data above from patEncFin
+#The following is a patient-level data.frame created in Step 3; contains patient_id,cutoff,y1 charges,y2 charges
+load("/project/msca/capstone3/patient_cutoff_charges.RData") 
+
+# clean patEncFin dates
+patEncFin_cutoff <- patEncFin
+patEncFin_cutoff$admission <-as.POSIXct(as.character(patEncFin_cutoff$start_date_offset), format="%Y-%m-%d %H:%M:%S")
+patEncFin_cutoff$discharge <- as.POSIXct(as.character(patEncFin_cutoff$end_date_offset), format="%Y-%m-%d %H:%M:%S")
+# IF there are NAs in the discharge date, run the following INSTEAD OF THE PREVIOUS LINE- NO LONGER NEEDED, THANKS TO NEW DATA
+# patEncFin_cutoff$dischargeNA <- as.POSIXct(as.character(patEncFin_cutoff$end_date_offset), format="%Y-%m-%d %H:%M:%S")
+# patEncFin_cutoff$discharge <-patEncFin_cutoff$dischargeNA
+# no_disch_date <- which(is.na(patEncFin_cutoff$dischargeNA))
+# if no discharge date is present, assume it is the same as admission date - NO LONGER NEEDED, THANKS TO NEW DATA
+# patEncFin_cutoff$discharge[no_disch_date]<-patEncFin_cutoff$admission[no_disch_date]
+
+# add in cutoff date (as well as y1 & y2 charges, for use later)
+patEncFin_cutoff <- merge(patEncFin_cutoff,patient_cutoff_charges,all=T)
+nrow(patEncFin)==nrow(patEncFin_cutoff)#the merge didn't add any rows to patEncFin; that means all patients in patEncFin are in patient_cutoff_charges. good.
+
+
+# associate the encounter_ids that were used to calculate year1 charges with this patEncFin table
+# to do this, merge the object charges_split with patEncFin_cutoff
+load("/project/msca/capstone3/charges_split.RData")
+patEncFin_cutoff <- merge(patEncFin_cutoff,charges_split[,c(1:3,6)],by=c("patient_id","encounter_id"),all=T)
+length(which(is.na(patEncFin_cutoff$above_cutoff)))
+# Out of 465,262 encounters, there are 71,337 NAs where we don't have charges data for patients. I remove these.
+patEncFin_cutoff <- subset(patEncFin_cutoff,!is.na(above_cutoff))
+save(patEncFin_cutoff,file="/project/msca/capstone3/patEncFin_cutoff.RData")
+
+# We are creating our predictor variables based on year1 only, so we remove rows corresponding to year2
+patEncFin_y1 <- subset(patEncFin_cutoff,above_cutoff==0)
+
+# STEP 4b: Calculate year-1 variables
+# Calculate length_of_stay
+patEncFin_y1$los <- as.numeric(difftime(patEncFin_y1$discharge,patEncFin_y1$admission,units="days"),units="days") #length of stay in days
+# later when we create a patient-level table (each row is 1 patient id), we will summarise this as sumlos=sum(los)
+# Calculate encounter number/hospitalizations
+patEncFin_y1$encounter_id2 <- 1
+# later when we create a patient-level table (each row is 1 patient id), we will summarise this as encountfreq=sum(encounter_id2)
+# Calculate number of hospitalizations
+patEncFin_y1$inpatient <- 0
+patEncFin_y1$inpatient[which(patEncFin_y1$enc_eio=="E, I,")] <- 1
+patEncFin_y1$inpatient[which(patEncFin_y1$enc_eio=="I,")] <- 1
+patEncFin_y1$inpatient[which(patEncFin_y1$enc_eio=="I, O,")] <- 1
+# later when we create a patient-level table (each row is 1 patient id), we will summarise this as hospitalizations=sum(inpatient)
+
+Mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+#Step 3: Create a patient-level table which summarizes our calculated variables
+patient_matrix <- ddply(patEncFin_y1, "patient_id",summarise, 
+                        sumlos=sum(los),
+                        encountfreq=sum(encounter_id2),
+                        hospitalizations=sum(inpatient),
+                        age=max(age_at_enc),
+                        num_ER_visits =sum(enc_eio=="E,")+sum(enc_eio=="E, I,")+sum(enc_eio=="E, O,"),
+                        mode_discharge_dispo = Mode(discharge_dispo),
+                        y1_charges=charges_y1[1],
+                        y2_charges=charges_y2[1])
+
+nrow(patient_matrix)#49157
+
+#check for nas
+nacols <- function(df) {
+  colnames(df)[unlist(lapply(df, function(x) any(is.na(x))))]
+}
+nacols(patient_matrix) #Remove them the places where NAs are found in both year2 & year1 charges - we shouldn't be finding NAs in BOTH
+patient_matrix <- subset(patient_matrix,!is.na(y2_charges) & !(is.na(y1_charges)))
+nrow(patient_matrix) #48105
+
+# Step 4c: merge in the demographic variables from the patfin table
+patient_matrix <- merge(patient_matrix,patfin,all.x=T) 
+# age has NAs for patients without year1 encounters, so we calculate that
+patient_age <- ddply(patEncFin[,1:3],"patient_id",summarise,age_y2=max(age_at_enc)) # this a patient's highest (most recent) age
+patient_matrix <- merge(patient_matrix,patient_age,by="patient_id",all.x=T)
+patient_matrix$age <- NULL
+
+
+# Step 4d: replace NAs with 0, in columns where it is appropriate to enter 0 for a patient with no encounters
+patient_matrix$sumlos[which(is.na(patient_matrix$sumlos))] <- 0
+patient_matrix$encountfreq[which(is.na(patient_matrix$encountfreq))] <- 0
+patient_matrix$hospitalizations[which(is.na(patient_matrix$hospitalizations))] <- 0
+patient_matrix$num_ER_visits[which(is.na(patient_matrix$num_ER_visits))] <- 0
+patient_matrix$mode_discharge_dispo[which(is.na(patient_matrix$mode_discharge_dispo))] <- "Not applicable"
+patient_matrix$y1_charges[which(is.na(patient_matrix$y1_charges))] <- 0
+dim(patient_matrix) #[1] 48105    14
+
+# Step 4e: save the matrix as an .RData file
+save(patient_matrix,file="/project/msca/capstone3/patient_matrix_centered.RData")
