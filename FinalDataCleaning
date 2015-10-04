@@ -366,3 +366,91 @@ dim(patient_matrix) #[1] 48105    14
 
 # Step 4e: save the matrix as an .RData file
 save(patient_matrix,file="/project/msca/capstone3/patient_matrix_centered.RData")
+
+
+### STEP 5:  add in the ICD-9 variables ###
+# Step 5a: load the patient-level matrix from Step 4, and the other necessary tables.
+load("/project/msca/capstone3/all_tables_appended.RData")
+load("/project/msca/capstone3/patient_matrix_centered.RData")
+
+# Step 5a, cont'd: explore the data sets
+dim(patient_matrix) #48105    14
+length(levels(as.factor(patient_matrix$patient_id))) #48105
+length(levels(as.factor(chargesPOA$Patient_ID))) # 7655
+names(icd9Dx)
+dim(icd9Dx) #884803      6
+length(levels(as.factor(icd9Dx$patient_id))) #35266 patients are represented in icd9Dx
+names(GrahamOut)
+dim(GrahamOut)
+length(levels(as.factor(GrahamOut$patient_id))) #45231 patients are represented in GrahamOut
+# Julie says that GrahamOut "Diagnosis Principal" is same as chargesPOA diagnosis with sequence value = 1.
+
+
+# create table that merges patients' primary icd9 codes from ChargesPOA and GrahamOut
+diag <- GrahamOut[,1:3]
+names(chargesPOA)
+head(chargesPOA$ICD.9.CM.Diagnosis...All)
+diag2 <- chargesPOA[which(chargesPOA$ICD.9.CM.Diagnosis...Sequence==1),1:3]
+dim(diag)
+dim(diag2)
+diag2 <- diag2[,c(2,1,3)]
+names(diag2) <- names(diag)
+diag <- rbind(diag,diag2)# warning, but it's ok
+dim(diag)
+dim(diag2)
+length(which(is.na(diag$patient_id)))#11623
+nrow(diag)#382,700
+# remove duplicate rows
+diag <- unique(diag)
+head(diag)
+nrow(unique(diag))#372777 
+# the number of unique patients for which we have diagnosis is 45231
+# the number of unique patients in our existing patient matrix is 46559
+nrow(patient_matrix)
+sum(unique(diag$patient_id) %in% patient_matrix$patient_id) #39507
+# so we only have 39507 patients with both charges data (and demog. data) AND diagnosis data
+# so there's a trade-off between having patients and having patients with diagnosis data...
+
+# say we DO incorporate patients who have diagnosis data
+
+#class(diag$ICD_9_CM_Diagnosis_Principal)#factor
+length(levels(diag$ICD_9_CM_Diagnosis_Principal))#5031
+
+# remove all encounters that did not happen in year 1
+load("/project/msca/capstone3/patEncFin_cutoff.RData")
+#merge in a cutoff_date column
+diag <- merge(patEncFin_cutoff[,c(1:2,16)],diag,all.y=T)
+dim(diag)#[1] 372377      4
+#for how many patient encounters do we have no date data?
+names(diag)
+length(which(is.na(diag$above_cutoff)))#1305
+sum(is.na(diag$above_cutoff))#1305
+#diag <- diag[which(!is.na(diag$cutoff_date)),] # warning
+sum(is.na(diag$above_cutoff))#0
+# remove all encounters above the cutoff date
+diag <- subset(diag,above_cutoff==0)
+dim(diag)#[1] 187548      4
+length(levels(diag$ICD_9_CM_Diagnosis_Principal))#5031
+# we want to summarize by patient the number of times that the person has had a particular ICD9 in year1
+# I'll try with a test_matrix that has single patient's encounter and diagnosis information
+#test_matrix <- subset(diag,patient_id==1000006)
+test_matrix <- diag[which(diag$patient_id==1000006),]
+test_matrix2 <- diag[which(diag$patient_id==1000009),]
+test_matrix <- rbind(test_matrix,test_matrix2)
+test_matrix$ICD_9_CM_Diagnosis_Principal <- droplevels(test_matrix$ICD_9_CM_Diagnosis_Principal)
+length(levels(test_matrix$ICD_9_CM_Diagnosis_Principal)) #5
+library(reshape2)
+dcast(test_matrix,formula=patient_id~ICD_9_CM_Diagnosis_Principal) # the warning is OK - ignore it.
+# that worked!
+# now we'll try it on the whole data set.
+
+diag <- diag[,c(1:2,4)]
+diag2 <- dcast(diag,formula=patient_id~ICD_9_CM_Diagnosis_Principal)
+dim(diag2)#[1] 39509  4246
+head(diag2[,1:5])
+
+save(diag2, file="/project/msca/capstone3/diag2.RData")
+# merge diag2 to patient-level matrix by overlapping patient_id
+patient_matrix2 <- merge(patient_matrix,diag2)
+
+save(patient_matrix2,file="/project/msca/capstone3/patient_matrix2.RData")
