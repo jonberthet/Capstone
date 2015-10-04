@@ -1,10 +1,9 @@
 # Steps in Final Data Cleaning
-# STEP 1: Read in the tables
-# this step loads all tables and stores them as RData files in capstone3. medsIn is stored separately.
-# STEP 2: Append inpatient+outpatient files
-# this step formats tables so  inpatient + outpatient can be appended, and appends.
-# STEP 3: Define the time split for each patient
-# STEP 4: Create the patient-level matrix
+# STEP 1: Read in the tables.
+# STEP 2: Append inpatient+outpatient files into single tables.
+# STEP 3: Define the time split for each patient.
+# STEP 4: Create the patient-level matrix based on time split, with summarized year1 variables.
+# STEP 5: Cast ICD-9 codes & merge them onto the patient-level matrix
 
 ### STEP 1: Read in tables ###
 
@@ -40,7 +39,7 @@ labs2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389
 medsOut2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9389_meds_out.txt",sep="|",quote="",header=T,fileEncoding="UCS-2LE")
 
 # Step 1d: save all tables
-#save(list=ls(all=TRUE),file="/project/msca/capstone3/all_tables.RData")
+save(list=ls(all=TRUE),file="/project/msca/capstone3/all_tables.RData")
 
 # Step 1e: save very large files separately
 #medsIn is really big and will be loaded and stored separately
@@ -61,9 +60,10 @@ medsOut2 <- read.delim("/project/msca/data/uchicagomed/Capstone_\ New\ Data/dr_9
 # save all the variables as an RData file
 
 # Step 2a: load the files from Step 1.
-# load("/project/msca/capstone3/all_tables.RData")
+load("/project/msca/capstone3/all_tables.RData")
 
 # Step 2b: make inpatient+outpatient files consistent, remove duplicates, and rbind them
+
 #patfin
 patfin <- rbind(patfin1, patfin2)
 rm(patfin1)
@@ -96,7 +96,6 @@ nrow(unique(patEncFin[,1:2])) # no duplicates
 #patEncFin[which(patEncFin$encounter_id==patEncFin$encounter_id[which(duplicated(patEncFin$encounter_id)==TRUE)]),]
 #patEncFin <- patEncFin[-which(patEncFin$encounter_id==patEncFin$encounter_id[which(duplicated(patEncFin$encounter_id)==TRUE)]),]
 nrow(patEncFin)==nrow(unique(patEncFin[,1:2])) # no duplicates
-
 
 #flow
 names(flow1)==names(flow2)
@@ -185,15 +184,16 @@ charges_all <- charges_all[-10299,] # remove the duplicate
 charges_all[(duplicated(charges_all[,1:2])),1:2] # no more duplicated rows
 
 # Save the tables. This line has been run, so you just need to re-run it if you've modified any of the above.
-# save(list=ls(all=TRUE),file="/project/msca/capstone3/all_tables_appended.RData")
+save(list=ls(all=TRUE),file="/project/msca/capstone3/all_tables_appended.RData")
+
 
 ### STEP 3: Create Time Split ###
 
-# load libraries & files
+# Step 3a: load libraries & files
 library(plyr)
 load("/project/msca/capstone3/all_tables_appended.RData")
 
-# create a table of dates of patient encounters; 
+# Step 3b: create a table of dates of patient encounters - @ patient encounter level
 admit_dates <- patEncFin[,c(1:2,4:5)] #create a table of patient encounter dates (admission & discharge)
 admit_dates$admission <-as.POSIXct(as.character(admit_dates$start_date_offset), format="%Y-%m-%d %H:%M:%S")
 admit_dates$discharge <- as.POSIXct(as.character(admit_dates$end_date_offset), format="%Y-%m-%d %H:%M:%S")
@@ -202,25 +202,26 @@ admit_dates$discharge <- as.POSIXct(as.character(admit_dates$end_date_offset), f
 #no_disch_date2 <- which(is.na(admit_dates$discharge))
 #admit_dates$discharge2[no_disch_date2] <- admit_dates$admission[no_disch_date2] #now discharge2 has a discharge date for every entry
 
-
-#create a table of important dates at the patient level: first and last admissions, and last discharge; plus the first value of admit_year
+# Step 3c: create a table of important dates @ the PATIENT level
+# These include first and last admissions, and last discharge; plus the first value of admit_year
 # note: we will only need to use admit_year for patients with 1 encounter)
 admissions <- ddply(admit_dates, "patient_id",summarise, first_admission=min(admission),last_admission=max(admission),last_discharge=max(discharge),num_encounters=length(encounter_id))#takes a minute
 
-
-#calculate range (span over time, in # of days) of patient encounter dates (distance between first_admission and last_discharge), and divide in two.
+# Step 3d: calculate range (span over time, in # of days) of patient encounter dates (distance between first_admission and last_discharge), and divide in two.
 admissions$date_range <- difftime(admissions$last_discharge,admissions$first_admission,units="days")
 admissions$half_date_range <- admissions$date_range/2 
 
-# determine the cutoff date: last_admission - 1/2(distance between first and last encounter dates)
+# Step 3e: determine each patient's cutoff date: last_admission - 1/2(distance between first and last encounter dates)
 admissions$cutoff_date <- admissions$last_discharge - admissions$half_date_range
 # for patients with only 1 encounter, we randomly add or substract 1 day to their cutoff date
 admissions$rand_samp <- as.difftime(sample(c(-1,1),nrow(admissions),replace=T),unit="days")
 admissions$cutoff_date[which(admissions$num_encounters==1)] <-  admissions$cutoff_date[which(admissions$num_encounters==1)] + admissions$rand_samp[which(admissions$num_encounters==1)]
 
-
-#merge charges_all with admissions to get the dates for each encounter
+# Step 3f: merge charges_all with encounter-level dates table (admit_dates) to link encounter charges to the dates that the encounters happened
+# we do this because charges_all only contains patient_id & encounter_id & charges, but not dates, which we'd need to determine which charges happened before the y1/y2 cutoff and which happened after it.
 charges_split <- merge(charges_all, admit_dates[,c(1:2,which(names(admit_dates)=="discharge"))],by=c("patient_id","encounter_id"),all.x=TRUE) #same nrows as charges_all, 393925
+
+# Step 3g: merge charges_all with table of important dates at the patient-level (admissions) to determine which encounters happend before or after the y1/y2 cutoff
 #now, merge with admission table to create a column of cutoff dates
 charges_split <- merge(charges_split,admissions[,c(which(names(admissions)=="patient_id"),which(names(admissions)=="cutoff_date"))],by="patient_id",all.x=T)
 charges_above <- subset(charges_split,discharge>cutoff_date)#charges above cutoff; note the >= here
@@ -229,7 +230,7 @@ nrow(charges_above) #[1] 192275
 nrow(charges_below) #[1] 199098
 # we have a comparable number of encounters above and below the cutoff dates.
 
-# create object that identifies encounter_ids that are above or below the cutoff
+# Step 3h: create object that identifies encounter_ids that are above or below the cutoff
 charges_split$above_cutoff <- 0
 charges_split$above_cutoff[which(charges_split$discharge>charges_split$cutoff_date)] <- 1
 head(charges_split$above_cutoff)
@@ -238,8 +239,7 @@ length(which(charges_split$above_cutoff==1)) #192275
 charges_split <- charges_split[,c(1:3,7:9)]
 save(charges_split,file="/project/msca/capstone3/charges_split.RData")
 
-
-# calculate year2 charges, and while we're at it, why not calculate y1 charges as well
+# Step 3i: calculate year2 charges, and while we're at it, why not calculate y1 charges as well
 charges_y2 <- ddply(charges_above, "patient_id",summarise, charges=sum(as.numeric(Charges),na.rm=T))
 charges_y1 <- ddply(charges_below, "patient_id",summarise, charges=sum(as.numeric(Charges),na.rm=T))
 nrow(charges_y2)#46901
@@ -251,8 +251,7 @@ length(unique(charges_all$patient_id))#56809
 save(charges_y2,file="/project/msca/capstone3/charges_y2.2.RData")
 save(charges_y1,file="/project/msca/capstone3/charges_y1.2.RData")
 
-
-#merge in y1 & y2 costs
+#Step 3j: #Create a table that ties together patient_id, cutoff date, and year1 & year2 charges
 admissions <- merge(admissions,charges_y1,all.x=T)
 names(admissions)[which(names(admissions)=="charges")]="charges_y1"
 admissions <- merge(admissions,charges_y2,all.x=T)
@@ -267,15 +266,16 @@ admissions <- admissions[-which(is.na(admissions$charges_y1) & is.na(admissions$
 # So charges does in fact = 0 for these NA values.
 admissions$charges_y1[which(is.na(admissions$charges_y1))] <- 0
 admissions$charges_y2[which(is.na(admissions$charges_y2))] <- 0
-
-
-#Create a table that ties together patient_id, cutoff date, and year1 & year2 charges
 patient_cutoff_charges <- admissions[,c(which(names(admissions)=="patient_id"),which(names(admissions)=="cutoff_date"),which(names(admissions)=="charges_y1"),which(names(admissions)=="charges_y2"))]
+
+# Step 3k: save the table
 save(patient_cutoff_charges,file="/project/msca/capstone3/patient_cutoff_charges.RData")
 
-### STEP 4: Create Patient-Level matrix (centered) 
 
-#STEP 4a: remove non-year-1 encounter data above from patEncFin
+### STEP 4: Create Patient-Level matrix (centered)###
+
+
+#STEP 4a: load data and remove non-year-1 encounter data above from patEncFin
 #The following is a patient-level data.frame created in Step 3; contains patient_id,cutoff,y1 charges,y2 charges
 load("/project/msca/capstone3/patient_cutoff_charges.RData") 
 
@@ -293,7 +293,6 @@ patEncFin_cutoff$discharge <- as.POSIXct(as.character(patEncFin_cutoff$end_date_
 # add in cutoff date (as well as y1 & y2 charges, for use later)
 patEncFin_cutoff <- merge(patEncFin_cutoff,patient_cutoff_charges,all=T)
 nrow(patEncFin)==nrow(patEncFin_cutoff)#the merge didn't add any rows to patEncFin; that means all patients in patEncFin are in patient_cutoff_charges. good.
-
 
 # associate the encounter_ids that were used to calculate year1 charges with this patEncFin table
 # to do this, merge the object charges_split with patEncFin_cutoff
@@ -372,7 +371,7 @@ save(patient_matrix,file="/project/msca/capstone3/patient_matrix_centered.RData"
 
 # Step 5a: load the patient-level matrix from Step 4, and the other necessary tables.
 load("/project/msca/capstone3/all_tables_appended.RData")
-load("/project/msca/capstone3/patient_matrix_centered.RData")
+load("/project/msca/capstone3/patient_matrix_centered.RData") #loads as the data frame "patient_matrix"
 
 # Step 5a, cont'd: explore the data sets
 dim(patient_matrix) #48105    14
@@ -456,5 +455,6 @@ sum(diag2[,2]) # these are the types of values we expect
 save(diag2, file="/project/msca/capstone3/diag2.RData")
 
 # Step 5e: merge diag2 to patient-level matrix by overlapping patient_id
+# THIS IS OUR FINAL DATA FRAME
 patient_matrix2 <- merge(patient_matrix,diag2)
 save(patient_matrix2,file="/project/msca/capstone3/patient_matrix2.RData")
