@@ -4,6 +4,8 @@
 # STEP 3: Define the time split for each patient.
 # STEP 4: Create the patient-level matrix based on time split, with summarized year1 variables.
 # STEP 5: Cast ICD-9 codes & merge them onto the patient-level matrix
+# STEP 6: create med and lab count
+# STEP 7: clean demographic level data
 
 ### STEP 1: Read in tables ###
 
@@ -458,3 +460,66 @@ save(diag2, file="/project/msca/capstone3/diag2.RData")
 # THIS IS OUR FINAL DATA FRAME
 patient_matrix2 <- merge(patient_matrix,diag2)
 save(patient_matrix2,file="/project/msca/capstone3/patient_matrix2.RData")
+
+# Step 6:
+library(plyr)
+library(sqldf)
+load("/project/msca/capstone3/patient_matrix2.RData")
+load("/project/msca/capstone3/all_tables_appended.RData")
+Medcount<-count(medsOut[1:486941,],vars="encounter_id")
+join_stringmedcount<-"select charges_all.*, Medcount.freq from charges_all left join Medcount on charges_all.encounter_id=Medcount.encounter_id"
+charges_all_join_Medcount<-sqldf(join_stringmedcount, stringsAsFactors=FALSE)
+head(charges_all_join_Medcount)
+tail(charges_all_join_Medcount)
+charges_all_join_Medcount$freq[is.na(charges_all_join_Medcount$freq)] <- 0 #replace na's with 0
+medfreq<-ddply(charges_all_join_Medcount,.(patient_id),summarise,medfreq=sum(freq))
+head(medfreq)
+length(unique(medfreq$patient_id))
+patient_matrix<-merge(medfreq, patient_matrix2,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+#head(patient_matrix2)
+#lab count
+labcount<-count(labs[1:10153073,],vars="encounter_id")
+head(labcount)
+tail(labcount)
+join_stringlabcount<-"select charges_all.*, labcount.freq from charges_all left join labcount on charges_all.encounter_id=labcount.encounter_id"
+charges_all_join_labcount<-sqldf(join_stringlabcount,stringsAsFactors=FALSE)
+head(charges_all_join_labcount)
+tail(charges_all_join_labcount)
+charges_all_join_labcount$freq[is.na(charges_all_join_labcount$freq)] <- 0 #replace na's with 0
+
+labfreq<-ddply(charges_all_join_labcount,.(patient_id),summarise,labfreq=sum(freq))
+head(labfreq)
+length(unique(labfreq$patient_id))
+patient_matrix<-merge(labfreq, patient_matrix2,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+head(patient_matrix2)
+
+save(patient_matrix2, file="/project/msca/capstone3/patient_matrix2revise.RData")
+
+# Step 7:
+#Clean
+#1: Clean Data
+patient_matrix2<-data.frame(patient_matrix2)
+patient_matrix2$race[patient_matrix2$race == 'B'] <- 'Black/African-American'
+patient_matrix2$race[patient_matrix2$race == 'W'] <- 'White'
+patient_matrix2$race[patient_matrix2$race == 'U'] <- 'Unknown'
+patient_matrix2$race[patient_matrix2$race == 'Patient Declined'] <- 'Unknown'
+patient_matrix2$race[patient_matrix2$race == ''] <- 'Unknown'
+patient_matrix2$race[patient_matrix2$race == 'A'] <- 'Asian/Mideast Indian'
+patient_matrix2$race[patient_matrix2$race == 'N/A'] <- 'Unknown'
+patient_matrix2$race[patient_matrix2$race == 'N'] <- 'Unknown'
+patient_matrix2$race[patient_matrix2$race == 'NA'] <- 'Unknown'
+
+#clean marital status
+patient_matrix2$marital_status[patient_matrix2$marital_status == ''] <- 'Unknown'
+patient_matrix2$marital_status[patient_matrix2$marital_status == 'N/A'] <- 'Unknown'
+
+#clean ethnicity
+patient_matrix2$ethnicity[patient_matrix2$ethnicity == ''] <- 'Unknown'
+patient_matrix2$ethnicity[patient_matrix2$ethnicity == 'N/A'] <- 'Unknown'
+patient_matrix2$ethnicity[patient_matrix2$ethnicity == 'Patient Declined'] <- 'Unknown'
+
+levels(patient_matrix2$marital_status)
+table(patient_matrix2$marital_status)
+
+save(patient_matrix2, file="/project/msca/capstone3/patient_matrix2revise.RData")
+
