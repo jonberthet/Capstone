@@ -476,7 +476,7 @@ medsIn2<-unique(medsIn2[,1:3])
 joinmeds<-rbind(medsOut, medsIn2)
 joinmeds<-unique(joinmeds[,1:3])
 nrow(joinmeds)
-Medcount<-count(medsOut[1:920582,],vars="encounter_id")
+Medcount<-count(joinmeds[1:920582,],vars="encounter_id")
 join_stringmedcount<-"select charges_split.*, Medcount.freq from charges_split left join Medcount on charges_split.encounter_id=Medcount.encounter_id"
 charges_all_join_Medcount<-sqldf(join_stringmedcount, stringsAsFactors=FALSE)
 head(charges_all_join_Medcount)
