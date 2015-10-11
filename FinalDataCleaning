@@ -486,7 +486,7 @@ charges_all_join_Medcount$freq[is.na(charges_all_join_Medcount$freq)] <- 0 #repl
 medfreq<-ddply(charges_all_join_Medcount,.(patient_id),summarise,medfreq=sum(freq))
 head(medfreq)
 length(unique(medfreq$patient_id))
-patient_matrix<-merge(patient_matrix2,medfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+patient_matrix<-merge(patient_matrix2,medfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall=TRUE)
 col_idx<-grep("medfreq",names(patient_matrix))
 patient_matrix<-patient_matrix[,c(col_idx,(1:ncol(patient_matrix))[-col_idx])]
 
@@ -504,7 +504,7 @@ charges_all_join_labcount$freq[is.na(charges_all_join_labcount$freq)] <- 0 #repl
 labfreq<-ddply(charges_all_join_labcount,.(patient_id),summarise,labfreq=sum(freq))
 head(labfreq)
 length(unique(labfreq$patient_id))
-patient_matrix<-merge(patient_matrix,labfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+patient_matrix<-merge(patient_matrix,labfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall=TRUE)
 col1_idx<-grep("labfreq",names(patient_matrix))
 patient_matrix<-patient_matrix[,c(col1_idx,(1:ncol(patient_matrix))[-col1_idx])]
 col2_idx<-grep("patient_id",names(patient_matrix))
