@@ -1,0 +1,30 @@
+load("/project/msca/capstone3/patient_matrix2revise.RData")
+#Regression Tree
+library(MASS)
+set.seed(10)
+dftree<-patient_matrix
+#str(dftree)
+
+
+set.seed(10)
+traintree <- sample(1:nrow(dftree),floor(0.7*nrow(dftree)))
+training_set_tree <- dftree[traintree,]
+testing_set_tree <- dftree[-traintree,]
+
+regression.tree<-tree(y2_charges~.,dftree,subset=traintree)
+summary(regression.tree)
+
+plot(regression.tree)
+text(regression.tree,pretty=0)
+cv.regressiontree=cv.tree(regression.tree)
+plot(cv.regressiontree$size,cv.regressiontree$dev,type="b")
+
+prune.regressiontree=prune.tree(regression.tree,best=7)
+plot(prune.regressiontree)
+text(prune.regressiontree,pretty=0)
+
+yhat=predict(regression.tree,newdata=testing_set_tree)
+regression.test=dftree[-traintree, "y2_charges"]
+plot(yhat,regression.test)
+abline(0,1)
+mean((yhat-regression.test)^2)
