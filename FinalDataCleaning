@@ -469,7 +469,7 @@ load("/project/msca/capstone3/patient_matrix2.RData")
 load("/project/msca/capstone3/all_tables_appended.RData")
 load("/project/msca/capstone3/charges_split.RData")
 medsOut$order_med_time_off<-NULL
-medsOut<-unique(medsOut[,1:3])
+medsOut<-unique(medsOut[,1:3]) 
 medsIn2$mar_action<-NULL
 medsIn2$take_med_time_off<-NULL
 medsIn2<-unique(medsIn2[,1:3])
@@ -486,7 +486,11 @@ charges_all_join_Medcount$freq[is.na(charges_all_join_Medcount$freq)] <- 0 #repl
 medfreq<-ddply(charges_all_join_Medcount,.(patient_id),summarise,medfreq=sum(freq))
 head(medfreq)
 length(unique(medfreq$patient_id))
-patient_matrix<-merge(patient_matrix2,medfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall=TRUE)
+
+patient_matrixjoin<-"select patient_matrix2.*, medfreq.medfreq from patient_matrix2 left join medfreq on patient_matrix2.patient_id=medfreq.patient_id"
+patient_matrix<-sqldf(patient_matrixjoin, stringsAsFactors=FALSE)
+
+#patient_matrix<-merge(patient_matrix2,medfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
 col_idx<-grep("medfreq",names(patient_matrix))
 patient_matrix<-patient_matrix[,c(col_idx,(1:ncol(patient_matrix))[-col_idx])]
 
@@ -504,7 +508,9 @@ charges_all_join_labcount$freq[is.na(charges_all_join_labcount$freq)] <- 0 #repl
 labfreq<-ddply(charges_all_join_labcount,.(patient_id),summarise,labfreq=sum(freq))
 head(labfreq)
 length(unique(labfreq$patient_id))
-patient_matrix<-merge(patient_matrix,labfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall=TRUE)
+patient_matrixjoin1<-"select patient_matrix2.*, labfreq.labfreq from patient_matrix2 left join labfreq on patient_matrix2.patient_id=labfreq.patient_id"
+patient_matrix<-sqldf(patient_matrixjoin1, stringsAsFactors=FALSE)
+#patient_matrix<-merge(patient_matrix,labfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
 col1_idx<-grep("labfreq",names(patient_matrix))
 patient_matrix<-patient_matrix[,c(col1_idx,(1:ncol(patient_matrix))[-col1_idx])]
 col2_idx<-grep("patient_id",names(patient_matrix))
