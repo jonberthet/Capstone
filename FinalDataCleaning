@@ -543,6 +543,9 @@ patient_matrix$ethnicity[patient_matrix$ethnicity == 'Patient Declined'] <- 'Unk
 levels(patient_matrix$marital_status)
 table(patient_matrix$marital_status)
 
+# clean mode_discharge_dispo (convert to factor)
+patient_matrix$mode_discharge_dispo <- as.factor(patient_matrix$mode_discharge_dispo)
+
 # remove dead patients & dod_off column
 patient_matrix <- patient_matrix[which(patient_matrix$dod_off==""),-which(colnames(patient_matrix)=="dod_off")]
 
