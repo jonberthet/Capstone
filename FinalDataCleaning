@@ -546,6 +546,12 @@ table(patient_matrix$marital_status)
 # clean mode_discharge_dispo (convert to factor)
 patient_matrix$mode_discharge_dispo <- as.factor(patient_matrix$mode_discharge_dispo)
 
+# clean labfreq 
+patient_matrix$labfreq[which(is.na(patient_matrix$labfreq))] <- 0
+
+# clean medfreq
+patient_matrix$medfreq[which(is.na(patient_matrix$medfreq))] <- 0
+
 # remove dead patients & dod_off column
 patient_matrix <- patient_matrix[which(patient_matrix$dod_off==""),-which(colnames(patient_matrix)=="dod_off")]
 
