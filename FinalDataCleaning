@@ -508,7 +508,7 @@ charges_all_join_labcount$freq[is.na(charges_all_join_labcount$freq)] <- 0 #repl
 labfreq<-ddply(charges_all_join_labcount,.(patient_id),summarise,labfreq=sum(freq))
 head(labfreq)
 length(unique(labfreq$patient_id))
-patient_matrixjoin1<-"select patient_matrix2.*, labfreq.labfreq from patient_matrix2 left join labfreq on patient_matrix2.patient_id=labfreq.patient_id"
+patient_matrixjoin1<-"select patient_matrix.*, labfreq.labfreq from patient_matrix left join labfreq on patient_matrix.patient_id=labfreq.patient_id"
 patient_matrix<-sqldf(patient_matrixjoin1, stringsAsFactors=FALSE)
 #patient_matrix<-merge(patient_matrix,labfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
 col1_idx<-grep("labfreq",names(patient_matrix))
