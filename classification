@@ -1,0 +1,14 @@
+#Tree
+dftree<-patient_matrix
+dftree$dod_off<-NULL
+dftree$patient_id<-NULL
+High<-ifelse(dftree$y2_charges==0,"Yes","No")  
+dftree=data.frame(dftree, High)
+tree.df<-tree(High~.-y2_charges,data=dftree)
+summary(tree.df)
+plot(tree.df)
+text(tree.df,pretty=0)
+tree.df
+patient_matrix1<-cbind(patient_matrix, classification=tree.df$y)
+
+
