@@ -94,29 +94,30 @@ traintree <- createDataPartition(df$y2_charges, p=0.7, list=FALSE)
 training_set_tree <- dftree[traintree,]
 testing_set_tree <- dftree[-traintree,]
 bootControl<-trainControl(number=200)
+set.seed(10)
+treefit<-train(training_set_tree,trainClass, method="ctree", tuneLength=5, trControl=bootControl, scaled=FALSE)
+treefit
+treefit$finalModel
 
 
+#boosted tree
+gbmGrid<-expand.grid(.interaction.depth=(1:5)*2, .n.trees=(1:10)*25, .shrinkage=.1)
+set.seed(10)
+gbmFit<-train(training_set_tree,trainClass, method="gbm", trControl=bootControl, verbose=FALSE, bag.fraction=0.5, tuneGrid=gbmGrid)
 
-#str(dftree)
+#Conduct visualizations
 
+#predict of new samples
 
+predict(treefit$finalModel, newdata=testing_set_tree)
 
+predict(treefit, newdata=testing_set_tree)
 
-regression.tree<-tree(y2_charges~.,dftree,subset=traintree)
-summary(regression.tree)
+models<- list(ctree=treefit, gbm=gbmFit)
+testPred<-predict(models, newdata=testing_set_tree)
+lapply(testPred, function(x) x[1:5])
 
-plot(regression.tree)
-text(regression.tree,pretty=0)
-cv.regressiontree=cv.tree(regression.tree)
-plot(cv.regressiontree$size,cv.regressiontree$dev,type="b")
-
-prune.regressiontree=prune.tree(regression.tree,best=7)
-plot(prune.regressiontree)
-text(prune.regressiontree,pretty=0)
-
-yhat=predict(regression.tree,newdata=testing_set_tree)
-regression.test=dftree[-traintree, "y2_charges"]
-plot(yhat,regression.test)
-abline(0,1)
-mean((yhat-regression.test)^2)
-
+predValues<-extractPrediction(models, testX=testing_set_tree, testY= testClass)
+testValues<-subset(predValues, dataType=="Test")
+head(testValues)
+table(testValues$model)
