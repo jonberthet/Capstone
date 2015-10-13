@@ -45,9 +45,12 @@ outlierTest(fulllm)
 sresid<-studres(fulllm)
 hist(sresid, freq=FALSE)
 curve(dnorm, add=TRUE)
-
+#non-constant error variance test
 ncvTest(fulllm)
-spreadLevelPlot(fit)
+#Non-constant Variance Score Test 
+#Variance formula: ~ fitted.values 
+#Chisquare = 141101.3    Df = 1     p = 0 #data is significantly heteroscedastic
+spreadLevelPlot(fulllm)
 plot(density(resid(fulllm)))
 y2_charges.res<-resid(fulllm)
 plot(y2_charges.res)
@@ -56,11 +59,9 @@ y2_charges.stdres<-rstandard(fulllm)
 qqnorm(y2_charges.stdres)
 qqline(y2_charges.stdres)
 hist(resid(fulllm))
-#Double check no multicollinearity
-vif(fulllm)
-sqrt(vif(fulllm))>2
+
 #Evaluate nonlinearity
-crPlots(fulllm)
+#crPlots(fulllm)
 ceresPlots(fulllm)
 #Test for Autocorrelated Errors
 durbinWatsonTest(fulllm)
@@ -81,3 +82,41 @@ xTrans<-preProcess(traindf, method=c("center","scale", "pca"))
 
 xtrain<-predict(xTrans, traindf)
 xtest<-predict(xTrans, testdf)
+
+#re-run linear models
+
+#Machine learning models
+#regression tree
+dftree<-patient_matrix
+dftree$patient_id<-NULL
+set.seed(10)
+traintree <- createDataPartition(df$y2_charges, p=0.7, list=FALSE)
+training_set_tree <- dftree[traintree,]
+testing_set_tree <- dftree[-traintree,]
+bootControl<-trainControl(number=200)
+
+
+
+#str(dftree)
+
+
+
+
+regression.tree<-tree(y2_charges~.,dftree,subset=traintree)
+summary(regression.tree)
+
+plot(regression.tree)
+text(regression.tree,pretty=0)
+cv.regressiontree=cv.tree(regression.tree)
+plot(cv.regressiontree$size,cv.regressiontree$dev,type="b")
+
+prune.regressiontree=prune.tree(regression.tree,best=7)
+plot(prune.regressiontree)
+text(prune.regressiontree,pretty=0)
+
+yhat=predict(regression.tree,newdata=testing_set_tree)
+regression.test=dftree[-traintree, "y2_charges"]
+plot(yhat,regression.test)
+abline(0,1)
+mean((yhat-regression.test)^2)
+
