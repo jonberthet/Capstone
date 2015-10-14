@@ -30,7 +30,7 @@ traindf<-training_set[,-highCorr] #remove highly correlated predictors from trai
 testdf<-testing_set[,-highCorr] #remove highly correlated predictors from testing set
 ncol(traindf)
 ncol(testdf)
-
+#Do lasso or ridge
 #Build benchmark linear regression from reduced data and look at residuals to determine if further transformations are needed
 fulllm<-lm(y2_charges~., data=traindf)
 summary(fulllm)
@@ -76,6 +76,8 @@ summary(pred)
 
 #Perform necessary transformations
 
+#build linear model again
+#look at residuals again after transformations
 #Perform PCA
 set.seed(10)
 xTrans<-preProcess(traindf, method=c("center","scale", "pca"))
@@ -90,12 +92,18 @@ xtest<-predict(xTrans, testdf)
 dftree<-patient_matrix
 dftree$patient_id<-NULL
 set.seed(10)
-traintree <- createDataPartition(df$y2_charges, p=0.7, list=FALSE)
-training_set_tree <- dftree[traintree,]
+
+traintree <- createDataPartition(dftree$y2_charges, p=0.7, list=FALSE)
+training_set_tree<- dftree[traintree,]
 testing_set_tree <- dftree[-traintree,]
+x1_train <- model.matrix(y2_charges~.,training_set_tree)
+x1_test <- model.matrix(y2_charges~.,testing_set_tree)
+y1_train <- training_set_tree$y2_charges
+y1_test <- testing_set_tree$y2_charges
+
 bootControl<-trainControl(number=200)
 set.seed(10)
-treefit<-train(training_set_tree,trainClass, method="ctree", tuneLength=5, trControl=bootControl, scaled=FALSE)
+treefit<-train(x1_train, y1_train,method="ctree", tuneLength=5, trControl=bootControl, scaled=FALSE)
 treefit
 treefit$finalModel
 
@@ -121,3 +129,5 @@ predValues<-extractPrediction(models, testX=testing_set_tree, testY= testClass)
 testValues<-subset(predValues, dataType=="Test")
 head(testValues)
 table(testValues$model)
+
+
