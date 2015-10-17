@@ -1,0 +1,140 @@
+load(file="/project/msca/capstone3/patient_matrix2revise.RData")
+
+
+# what are the classes of the variables?
+#classes <- data.frame(class=rep(0,ncol(patient_matrix)))
+classes <- list()
+for (i in 1:ncol(patient_matrix)) {
+  classes[i]<-class(patient_matrix[,i])[1]
+}
+classes <- as.matrix(classes)
+classes2 <- list()
+for (i in 1:ncol(patient_matrix)) {
+  classes2[i]<-names(patient_matrix)[i]
+}
+classes2 <- as.matrix(classes2)
+variable_classes <- cbind(classes2,classes)
+head(variable_classes,20)
+
+# investigate NA columns
+nacols <- function(df) {
+  colnames(df)[unlist(lapply(df, function(x) any(is.na(x))))]
+}
+nacols(patient_matrix)
+
+
+# define train/test split
+set.seed(10)
+train <- sample(1:nrow(patient_matrix),floor(0.7*nrow(patient_matrix)))
+
+# define test set
+y.test <- patient_matrix[-train,"y2_charges"]
+
+# regression tree
+library(tree)
+regression.tree <- tree(y2_charges~.,patient_matrix[,-1],subset=train) #warning: NAs introduced by coercion
+summary(regression.tree) #only used 2 variables! labfreq and y1_charges actually used in treebuilding. Why?
+plot(regression.tree)
+text(regression.tree) 
+yhat <- predict(regression.tree,newdata=patient_matrix[-train,-1])
+
+plot(yhat,y.test)
+abline(0,1)
+tree.mse <- mean((yhat-y.test)^2) #MSE
+tree.rmse <- sqrt(mean((yhat-y.test)^2)) # RMSE says we're on average $37,535 off from our predictions (I think)
+
+
+# lasso
+x <- model.matrix(y2_charges~.,patient_matrix[,-1])
+y <- patient_matrix$y2_charges
+
+x_train <- x[train,]
+x_test <- x[-train,]
+y_train <- y[train]
+y_test <- y[-train]
+
+# ridge regression
+library(glmnet)
+grid <- 10^seq(3,-3,length=10) # medium grid
+grid2 <- 10^seq(0,6,length=10) #large-numbered grid
+ptm <- proc.time()
+ridge.mod <- glmnet(x_train,y_train,alpha=0,lambda=grid2) #37s runtime
+proc.time() - ptm 
+ptm <- proc.time()
+set.seed(10)
+cv.out <- cv.glmnet(x_train,y_train,lambda=grid2,alpha=0) #7.7-minute runtime
+proc.time() - ptm
+plot(cv.out)
+ridge.pred <- predict(ridge.mod,s=cv.out$lambda.min,exact=T,newx=x_test)
+ridge.mse <- mean((ridge.pred-y_test)^2)
+ridge.rmse <- sqrt(mean((ridge.pred-y_test)^2))
+
+
+# lasso
+lasso.mod <- glmnet(x_train,y_train,alpha=1,lambda=grid2) #25-sec runtime
+ptm <- proc.time()
+set.seed(10)
+cv.lasso  <- cv.glmnet(x_train,y_train,lambda=grid2,alpha=1) #5.6-min runtime
+proc.time() - ptm 
+plot(cv.lasso)
+lasso.pred <- predict(lasso.mod,s=cv.lasso$lambda.min, newx=x_test) 
+lasso.mse <- mean((lasso.pred-y_test)^2)
+lasso.rmse <- sqrt(mean((lasso.pred-y_test)^2))
+
+
+# linear model
+lm.pred <- predict(ridge.mod,s=0,exact=T,x_test) #setting s=0 & exact=T makes it linear model
+lm.mse <- mean((lm.pred-y_test)^2)
+lm.rmse <- sqrt(mean((lm.pred-y_test)^2))
+
+
+# dimension reduction: pca, l
+
+
+# artificial neural networks
+
+
+# investigate the lasso coefficients that were NOT turned to 0.
+lasso_coeffs <- predict(lasso.mod,s=cv.lasso$lambda.min,type="coefficients")
+length(which(lasso_coeffs!=0)) #only 14 predictors included!
+dimnames(lasso_coeffs)[[1]][which(lasso_coeffs!=0)]
+
+
+# build a tree based on the variables that were not shrunk to 0 by lasso
+lasso.tree <- tree(y2_charges~labfreq+y1_charges+X147.9+X153.8+X154.1+X159.9+X185+X198.81+X285.3+X340+X370.35+V58.0+V66.2,patient_matrix[,-1],subset=train)
+summary(lasso.tree) # still only includes 2 variables
+
+# build a random forest based on the variables that were not shrunk to 0 by lasso
+library(randomForest)
+set.seed(10)
+# the folowing line crashed R in RCC
+# bag.ranfor <- randomForest(y2_charges~labfreq+y1_charges+X147.9+X153.8+X154.1+X159.9+X185+X198.81+X285.3+X340+X370.35+V58.0+V66.2,patient_matrix[,-1],subset=train,mtry=13,importance=T)
+# so instead i'll try it with the default mtry value
+ptm <- proc.time()
+bag.ranfor <- randomForest(y2_charges~labfreq+y1_charges+X147.9+X153.8+X154.1+X159.9+X185+X198.81+X285.3+X340+X370.35+V58.0+V66.2,patient_matrix[,-1],subset=train,importance=T)
+proc.time() - ptm 
+# 2-minute runtime
+bag.ranfor
+yhat.bag <- predict(bag.ranfor,newdata=patient_matrix[-train,-1])
+plot(yhat.bag,y_test)
+abline(0,1)
+ranfor.lasso.mse <- mean((yhat.bag-y_test)^2)
+ranfor.lasso.rmse <- sqrt(mean((yhat.bag-y_test)^2))
+
+# random forest with all variables as options
+
+# ptm <- proc.time()
+# set.seed(10)
+# ranfor <- randomForest(y2_charges~.,patient_matrix[,-1],mtry=10,subset=train,importance=T)
+# proc.time() - ptm 
+# save(ranfor,file="/project/msca/capstone3/ranfor.RData")
+# ranfor
+#ranfor.pred <- predict(ranfor,newdata=patient_matrix[-train,-1])
+# plot(ranfor.pred,y_test)
+# abline(0,1)
+# ranfor.mse <- mean((ranfor.pred-y_test)^2)
+# ranfor.rmse <- sqrt(mean((ranfor.pred-y_test)^2))
+
+# model comparison
+c(lm.mse=lm.mse,ridge.mse=ridge.mse,lasso.mse=lasso.mse,tree.mse=tree.mse)# ,ranfor.mse=ranfor.lasso.mse)
+c(lm.rmse=lm.rmse,ridge.rmse=ridge.rmse,lasso.rmse=lasso.rmse,tree.rmse=tree.rmse) #,ranfor.lasso.rmse=ranfor.rmse)
