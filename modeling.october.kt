@@ -92,7 +92,7 @@ xtest<-predict(xTrans, testdf)
 
 #Machine learning models
 #regression tree
-dftree<-patient_matrix[1:500,]
+dftree<-patient_matrix
 dftree$patient_id<-NULL
 set.seed(10)
 
@@ -114,7 +114,7 @@ set.seed(10)
 getModelInfo("ctree2", FALSE)[[1]]$grid
 modelLookup("ctree2")
 Grid<-expand.grid(maxdepth=seq())
-treefit<-train(x1_train, y1_train,method="ctree2", tuneGrid=expand.grid(mincriterion=0.95))
+treefit<-train(x1_train, y1_train,method="ctree2", maxdepth=3)
 treefit
 treefit$finalModel
 
@@ -195,4 +195,5 @@ regression.test=dftree[-traintree, "y2_charges"]
 plot(yhat,regression.test)
 abline(0,1)
 mean((yhat-regression.test)^2)
+
 
