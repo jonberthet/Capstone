@@ -83,13 +83,26 @@ summary(pred)
 #look at residuals again after transformations
 #Perform PCA
 set.seed(10)
-xTrans<-preProcess(traindf, method=c("center","scale", "pca"))
+patient_matrixpca<-patient_matrix
+patient_matrixpca$patient_id<-NULL
+patient_matrixpca$mode_discharge_dispo<-NULL
+patient_matrixpca$sex<-NULL
+patient_matrixpca$race<-NULL
+patient_matrixpca$ethnicity<-NULL
+patient_matrixpca$marital_status<-NULL
+trainpca <- createDataPartition(patient_matrixpca$y2_charges, p=0.7, list=FALSE)
+training_set_pca<- patient_matrixpca[trainpca,]
+testing_set_pca <- patient_matrixpca[-trainpca,]
+xTrans<-preProcess(patient_matrixpca, method=c("center","scale", "pca"))
 
-xtrain<-predict(xTrans, traindf)
-xtest<-predict(xTrans, testdf)
+xtrain<-predict(xTrans, training_set_pca)
+xtest<-predict(xTrans, testing_set_pca)
 
 #re-run linear models
-
+fulllmpca<-lm(y2_charges~., data=xtrain)  #what do you use as the response variable?
+summary(fulllmpca)
+fulllm.MSE.pca <- mean((fulllmpca$fitted.values - xtrain$y2_charges)^2) #response variable?
+fulllm.MSE.pca
 #Machine learning models
 #regression tree
 dftree<-patient_matrix
