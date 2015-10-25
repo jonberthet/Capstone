@@ -25,7 +25,7 @@ nacols(patient_matrix)
 
 # define train/test split
 set.seed(10)
-train <- sample(1:nrow(patient_matrix),floor(0.7*nrow(patient_matrix)))
+train<-createDataPartition(patient_matrix$y2_charges, p=0.7, list=FALSE)
 
 # define test set
 y.test <- patient_matrix[-train,"y2_charges"]
@@ -44,7 +44,7 @@ tree.mse <- mean((yhat-y.test)^2) #MSE
 tree.rmse <- sqrt(mean((yhat-y.test)^2)) # RMSE says we're on average $37,535 off from our predictions (I think)
 
 
-# lasso
+# define model matrix for ridge and lasso models
 x <- model.matrix(y2_charges~.,patient_matrix[,-1])
 y <- patient_matrix$y2_charges
 
