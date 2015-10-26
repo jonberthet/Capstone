@@ -4,8 +4,8 @@ library(MASS)
 library(gvlma)
 library(party)
 load("/project/msca/capstone3/patient_matrix2revise.RData")
-load("/project/msca/kjtong/capstone.october.RData")
-
+#load("/project/msca/kjtong/capstone.october.RData")
+load("/project/msca/capstone3/Octoberfinalmodels.RData")
 #Test and Train for Multicollinearity on numerical variables
 set.seed(10)
 df<-patient_matrix
@@ -93,6 +93,7 @@ patient_matrixpca$marital_status<-NULL
 trainpca <- createDataPartition(patient_matrixpca$y2_charges, p=0.7, list=FALSE)
 training_set_pca<- patient_matrixpca[trainpca,]
 testing_set_pca <- patient_matrixpca[-trainpca,]
+#bind back categorical variables - look at grace's code for PCA : create transformed data, take vector of year two costs and remove from input, then bind back in.
 xTrans<-preProcess(patient_matrixpca, method=c("center","scale", "pca"))
 
 xtrain<-predict(xTrans, training_set_pca)
@@ -120,47 +121,36 @@ y1_test <- testing_set_tree$y2_charges
 formula<-y2_charges~.
 
 fit.ctree.party<-ctree(formula, data=training_set_tree, controls=ctree_control(mincriterion=0.95,savesplitstats=FALSE))
+fit.ctree.party
 
+#bootControl<-trainControl(method="cv", number=6, summaryFunction=defaultSummary)
+#set.seed(10)
+#getModelInfo("ctree2", FALSE)[[1]]$grid
+#modelLookup("ctree2")
+#Grid<-expand.grid(maxdepth=seq())
+#treefit<-train(x1_train, y1_train,method="rpart2", maxdepth=3)
+#treefit
+#treefit$finalModel
 
-bootControl<-trainControl(method="cv", number=6, summaryFunction=defaultSummary)
-set.seed(10)
-getModelInfo("ctree2", FALSE)[[1]]$grid
-modelLookup("ctree2")
-Grid<-expand.grid(maxdepth=seq())
-treefit<-train(x1_train, y1_train,method="ctree2", maxdepth=3)
-treefit
-treefit$finalModel
+getModelInfo("rpart", FALSE)[[1]]$grid
+modelLookup("rpart")
+treefit<-train(x1_train, y1_train,method="rpart2", maxdepth=3)
+
+#nncontrol<-trainControl(method="LOOCV", seeds=seeds)
+getModelInfo("mlp", FALSE)[[1]]$grid
+modelLookup("mlp")
+nnet<-train(x1_train, y1_train,method="mlp", size=4)
 
 
 #boosted tree
-MCLogLoss <- function(data, lev = NULL, model = NULL)  {
-  
-  obs <- model.matrix(~data$obs - 1)
-  preds <- data[, 3:ncol(data)]
-  
-  err = 0
-  for(ob in 1:nrow(obs))
-  {
-    for(c in 1:ncol(preds))
-    {
-      p <- preds[ob, c]
-      p <- min(p, 1 - 10e-15)
-      p <- max(p, 10e-15)
-      err = err + obs[ob, c] * log(p)
-    }
-  }
-  
-  out <- err / nrow(obs) * -1
-  names(out) <- c("MCLogLoss")
-  out
-}
+
 getModelInfo("gbm", FALSE)[[1]]$grid
 modelLookup("gbm")
 control<-trainControl(method="repeatedCV", number=10, repeats=1, verboseIter=FALSE, returnResamp="all", classProbs=TRUE,)
 gbmGrid<-expand.grid(interaction.depth=seq(1,4), n.trees=(1:4)*50, shrinkage=.1, n.minobsinnode=10)
 set.seed(10)
 gbmFit<-train(x1_train, y1_train, method="gbm", trControl=control, tuneGrid=gbmGrid, metric="RMSE", verbose=FALSE)
-
+gbmFit
 #Conduct visualizations
 
 #Show model comparisons
