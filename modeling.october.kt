@@ -3,6 +3,9 @@ library(car)
 library(MASS)
 library(gvlma)
 library(party)
+library(RSNNS)
+library(lmtest)
+library(sandwich)
 load("/project/msca/capstone3/patient_matrix2revise.RData")
 #load("/project/msca/kjtong/capstone.october.RData")
 load("/project/msca/capstone3/Octoberfinalmodels.RData")
@@ -40,8 +43,22 @@ summary(fulllm)
 fulllm.MSE <- mean((fulllm$fitted.values - traindf$y2_charges)^2)
 fulllm.MSE
 
+
+#heterosketaskity-robust standard errors
+
+fulllm$robse<-vcovHC(fulllm, type="HC1")
+coeftest<-coeftest(fulllm, fulllm$robse)
+charges_hat<-fitted(fulllm) #predicted values
+charges_hat_fram<-as.data.frame(charges_hat)
+charges_resid<-residuals(fulllm)
+charges_resid_frame<-as.data.frame(charges_resid)
+residualplots<-residualPlot(fulllm)
+avplot<-avPlots(fulllm, id.n=5, id.cex=0.7)
+qqplot<-qqPlot(fulllm, id.n=5)
+influenceindexplot<-influenceIndexPlot(fulllm, id.n=5)
+influenceplot<-influencePlot(fulllm, id.n=5)
 #Look at Residuals and outliers
-outlier<-outlierTest(fulllm)
+outlier<-outlierTest(fulllm, cutoff=INF, n.max=INF)
 #qqPlot(fulllm)
 #leveragePlot(fulllm)
 #av.Plots(fulllm)
@@ -106,7 +123,7 @@ fulllm.MSE.pca <- mean((fulllmpca$fitted.values - xtrain$y2_charges)^2) #respons
 fulllm.MSE.pca
 #Machine learning models
 #regression tree
-dftree<-patient_matrix
+dftree<-patient_matrix[1:200,]
 dftree$patient_id<-NULL
 set.seed(10)
 
