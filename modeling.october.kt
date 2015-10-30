@@ -7,8 +7,8 @@ library(RSNNS)
 library(lmtest)
 library(sandwich)
 load("/project/msca/capstone3/patient_matrix2revise.RData")
-#load("/project/msca/kjtong/capstone.october.RData")
-load("/project/msca/capstone3/Octoberfinalmodels.RData")
+load("/project/msca/kjtong/capstone.october.RData")
+#load("/project/msca/capstone3/Octoberfinalmodels.RData")
 #Test and Train for Multicollinearity on numerical variables
 set.seed(10)
 df<-patient_matrix
@@ -101,20 +101,45 @@ summary(pred)
 #Perform PCA
 set.seed(10)
 patient_matrixpca<-patient_matrix
-patient_matrixpca$patient_id<-NULL
-patient_matrixpca$mode_discharge_dispo<-NULL
-patient_matrixpca$sex<-NULL
-patient_matrixpca$race<-NULL
-patient_matrixpca$ethnicity<-NULL
-patient_matrixpca$marital_status<-NULL
-trainpca <- createDataPartition(patient_matrixpca$y2_charges, p=0.7, list=FALSE)
+patient_matrixpca$y2_charges<-NULL
+
+zv<-apply(patient_matrixpca,2,function(x) length(unique(x))==1) #code for zero variance predictors
+sum(zv)
+patient_matrixpca<-patient_matrixpca[,!zv] #remove zero variance predictors
+
+classes<-list()
+for (i in 1:ncol(patient_matrixpca)){
+  classes[i]<-class(patient_matrixpca[,i])
+}
+trainpca <- sample(1:nrow(patient_matrixpca),floor(0.7*nrow(patient_matrixpca)))
 training_set_pca<- patient_matrixpca[trainpca,]
 testing_set_pca <- patient_matrixpca[-trainpca,]
-#bind back categorical variables - look at grace's code for PCA : create transformed data, take vector of year two costs and remove from input, then bind back in.
-xTrans<-preProcess(patient_matrixpca, method=c("center","scale", "pca"))
+#collect numeric columns into a single data frame 
+train_num<-training_set_pca[,c(which(classes=="numeric"))]
+train_num1<-cbind(training_set_pca$patient_id, as.data.frame(train_num))
+names(train_num1)[1]<-"patient_id"
+#collect integer columns into a single data frame
+train_int<-training_set_pca[,c(which(classes=="integer"))]
+#collect categorical columns into seperate data fram 
+train_cat<-training_set_pca[,c(which(classes=="factor"))]
+test_num<-testing_set_pca[,c(which(classes=="numeric"))]
+test_cat<-testing_set_pca[,c(which(classes=="factor"))]
+test_int<-testing_set_pca[,c(which(classes=="integer"))]
 
-xtrain<-predict(xTrans, training_set_pca)
-xtest<-predict(xTrans, testing_set_pca)
+
+#Make integers numeric and cbind back into numeric piece
+train_num2<-apply(train_int,2,as.numeric)
+train_num<-cbind(train_num1, as.data.frame(train_num2))
+train_num$patient_id<-NULL  #(how can you use patient_id??)
+PCA<-preProcess(train_num,method=c("pca"))
+
+
+
+#bind back categorical variables - look at grace's code for PCA : create transformed data, take vector of year two costs and remove from input, then bind back in.
+#xTrans<-preProcess(train_num, method=c("center","scale", "pca"))
+
+#xtrain<-predict(xTrans, training_set_pca)
+#xtest<-predict(xTrans, testing_set_pca)
 
 #re-run linear models
 fulllmpca<-lm(y2_charges~., data=xtrain)  #what do you use as the response variable?
@@ -123,7 +148,7 @@ fulllm.MSE.pca <- mean((fulllmpca$fitted.values - xtrain$y2_charges)^2) #respons
 fulllm.MSE.pca
 #Machine learning models
 #regression tree
-dftree<-patient_matrix[1:200,]
+dftree<-patient_matrix
 dftree$patient_id<-NULL
 set.seed(10)
 
