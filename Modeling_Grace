@@ -43,7 +43,7 @@ plot(yhat,y.test)
 abline(0,1)
 tree.mse <- mean((yhat-y.test)^2) #MSE
 tree.rmse <- sqrt(mean((yhat-y.test)^2)) # RMSE says we're on average $37,535 off from our predictions (I think)
-
+tree.mae <- mean(abs(yhat-y.test))
 
 # define model matrix for ridge and lasso models
 x <- model.matrix(y2_charges~.,patient_matrix[,-1])
@@ -69,7 +69,7 @@ plot(cv.out)
 ridge.pred <- predict(ridge.mod,s=cv.out$lambda.min,exact=T,newx=x_test)
 ridge.mse <- mean((ridge.pred-y_test)^2)
 ridge.rmse <- sqrt(mean((ridge.pred-y_test)^2))
-ridge.rmse
+ridge.mae <- mean(abs(ridge.pred-y_test))
 
 # lasso
 lasso.mod <- glmnet(x_train,y_train,alpha=1,lambda=grid2) #25-sec runtime
@@ -81,13 +81,13 @@ plot(cv.lasso)
 lasso.pred <- predict(lasso.mod,s=cv.lasso$lambda.min, newx=x_test) 
 lasso.mse <- mean((lasso.pred-y_test)^2)
 lasso.rmse <- sqrt(mean((lasso.pred-y_test)^2))
-
+lasso.mae <- mean(abs(lasso.pred-y.test))
 
 # linear model
 lm.pred <- predict(ridge.mod,s=0,exact=T,x_test) #setting s=0 & exact=T makes it linear model
 lm.mse <- mean((lm.pred-y_test)^2)
 lm.rmse <- sqrt(mean((lm.pred-y_test)^2))
-
+lm.mae <- mean(abs(lm.pred-y.test))
 
 # dimension reduction: pca, l
 
@@ -111,6 +111,7 @@ summary(lasso.tree) # still only includes 2 variables
 plot(lasso.tree)
 text(lasso.tree)
 
+
 # build a random forest based on the variables that were not shrunk to 0 by lasso
 library(randomForest)
 set.seed(10)
@@ -127,6 +128,7 @@ plot(yhat.bag,y_test)
 abline(0,1)
 ranfor.lasso.mse <- mean((yhat.bag-y_test)^2)
 ranfor.lasso.rmse <- sqrt(mean((yhat.bag-y_test)^2))
+ranfor.lasso.mae <- mean(abs(yhat.bag-y.test))
 
 # random forest with all variables as options
 
@@ -143,8 +145,12 @@ ranfor.lasso.rmse <- sqrt(mean((yhat.bag-y_test)^2))
 # ranfor.rmse <- sqrt(mean((ranfor.pred-y_test)^2))
 
 # model comparison
-c(lm.mse=lm.mse,ridge.mse=ridge.mse,lasso.mse=lasso.mse,tree.mse=tree.mse)# ,ranfor.mse=ranfor.lasso.mse)
-c(lm.rmse=lm.rmse,ridge.rmse=ridge.rmse,lasso.rmse=lasso.rmse,tree.rmse=tree.rmse) #,ranfor.lasso.rmse=ranfor.rmse)
+#mse
+c(lm.mse=lm.mse,ridge.mse=ridge.mse,lasso.mse=lasso.mse,tree.mse=tree.mse,ranfor.mse=ranfor.lasso.mse)
+#rmse
+c(lm.rmse=lm.rmse,ridge.rmse=ridge.rmse,lasso.rmse=lasso.rmse,tree.rmse=tree.rmse,ranfor.lasso.rmse=ranfor.lasso.rmse)
+#mae
+c(lm.mae=lm.mae,ridge.mae=ridge.mae,lasso.mae=lasso.mae,tree.mae=tree.mae,ranfor.lasso.mae=ranfor.lasso.mae)
 
 
 save(list=ls(all=T),file="/project/msca/capstone3/modeling_grace.RData")
@@ -159,27 +165,61 @@ length(y_test[which(y_test>0 & y_test <=2500)])#3502 patients
 length(y_test[which(y_test>2500 & y_test <10000)])#3209 patients
 length(y_test[which(y_test >10000)]) #3450 patients
 
-# maybe we could classify them into 0 or non-0 charge patients
+# calculate rmse for each model run
 tree.rmse0 <- sqrt(mean((yhat[which(y_test==0)]-y.test[which(y_test==0)])^2))
 lm.rmse0 <- sqrt(mean((lm.pred[which(y_test==0)]-y_test[which(y_test==0)])^2))
 ridge.rmse0 <- sqrt(mean((ridge.pred[which(y_test==0)]-y_test[which(y_test==0)])^2))
 lasso.rmse0 <- sqrt(mean((lasso.pred[which(y_test==0)]-y_test[which(y_test==0)])^2))
-c(lm.rmse0=lm.rmse0,ridge.rmse0=ridge.rmse0,lasso.rmse0=lasso.rmse0,tree.rmse0=tree.rmse0) #,ranfor.lasso.rmse=ranfor.rmse)
+ranfor.lasso.rmse0 <- sqrt(mean((yhat.bag[which(y_test==0)]-y_test[which(y_test==0)])^2))
+c(lm.rmse0=lm.rmse0,ridge.rmse0=ridge.rmse0,lasso.rmse0=lasso.rmse0,tree.rmse0=tree.rmse0,ranfor.lasso.rmse0=ranfor.lasso.rmse0) #,ranfor.lasso.rmse=ranfor.rmse)
 
 tree.rmse1 <- sqrt(mean((yhat[which(y_test>0 & y_test <=2500)]-y.test[which(y_test>0 & y_test <=2500)])^2))
 lm.rmse1 <- sqrt(mean((lm.pred[which(y_test>0 & y_test <=2500)]-y_test[which(y_test>0 & y_test <=2500)])^2))
 ridge.rmse1 <- sqrt(mean((ridge.pred[which(y_test>0 & y_test <=2500)]-y_test[which(y_test>0 & y_test <=2500)])^2))
 lasso.rmse1 <- sqrt(mean((lasso.pred[which(y_test>0 & y_test <=2500)]-y_test[which(y_test>0 & y_test <=2500)])^2))
-c(lm.rmse1=lm.rmse1,ridge.rmse1=ridge.rmse1,lasso.rmse1=lasso.rmse1,tree.rmse1=tree.rmse1) #,ranfor.lasso.rmse=ranfor.rmse)
+ranfor.lasso.rmse1 <- sqrt(mean((yhat.bag[which(y_test>0 & y_test <=2500)]-y_test[which(y_test>0 & y_test <=2500)])^2))
+c(lm.rmse1=lm.rmse1,ridge.rmse1=ridge.rmse1,lasso.rmse1=lasso.rmse1,tree.rmse1=tree.rmse1,ranfor.lasso.rmse1=ranfor.lasso.rmse1) #,ranfor.lasso.rmse=ranfor.rmse)
 
 tree.rmse2 <- sqrt(mean((yhat[which(y_test>2500 & y_test <10000)]-y.test[which(y_test>2500 & y_test <10000)])^2))
 lm.rmse2 <- sqrt(mean((lm.pred[which(y_test>2500 & y_test <10000)]-y_test[which(y_test>2500 & y_test <10000)])^2))
 ridge.rmse2 <- sqrt(mean((ridge.pred[which(y_test>2500 & y_test <10000)]-y_test[which(y_test>2500 & y_test <10000)])^2))
 lasso.rmse2 <- sqrt(mean((lasso.pred[which(y_test>2500 & y_test <10000)]-y_test[which(y_test>2500 & y_test <10000)])^2))
-c(lm.rmse2=lm.rmse2,ridge.rmse2=ridge.rmse2,lasso.rmse2=lasso.rmse2,tree.rmse2=tree.rmse2) #,ranfor.lasso.rmse=ranfor.rmse)
+ranfor.lasso.rmse2 <- sqrt(mean((yhat.bag[which(y_test>2500 & y_test <10000)]-y_test[which(y_test>2500 & y_test <10000)])^2))
+c(lm.rmse2=lm.rmse2,ridge.rmse2=ridge.rmse2,lasso.rmse2=lasso.rmse2,tree.rmse2=tree.rmse2,ranfor.lasso.rmse2=ranfor.lasso.rmse2) #,ranfor.lasso.rmse=ranfor.rmse)
 
 tree.rmse3 <- sqrt(mean((yhat[which(y_test >10000)]-y.test[which(y_test >10000)])^2))
 lm.rmse3 <- sqrt(mean((lm.pred[which(y_test >10000)]-y_test[which(y_test >10000)])^2))
 ridge.rmse3 <- sqrt(mean((ridge.pred[which(y_test >10000)]-y_test[which(y_test >10000)])^2))
 lasso.rmse3 <- sqrt(mean((lasso.pred[which(y_test >10000)]-y_test[which(y_test >10000)])^2))
-c(lm.rmse3=lm.rmse3,ridge.rmse3=ridge.rmse3,lasso.rmse3=lasso.rmse3,tree.rmse3=tree.rmse3) #,ranfor.lasso.rmse=ranfor.rmse)
+ranfor.lasso.rmse3 <- sqrt(mean((yhat.bag[which(y_test >10000)]-y_test[which(y_test >10000)])^2))
+c(lm.rmse3=lm.rmse3,ridge.rmse3=ridge.rmse3,lasso.rmse3=lasso.rmse3,tree.rmse3=tree.rmse3,ranfor.lasso.rmse3=ranfor.lasso.rmse3) #,ranfor.lasso.rmse=ranfor.rmse)
+
+
+# calculate mae for each model run
+tree.mae0 <- mean(abs(yhat[which(y_test==0)]-y.test[which(y_test==0)]))
+lm.mae0 <- mean(abs(lm.pred[which(y_test==0)]-y_test[which(y_test==0)]))
+ridge.mae0 <- mean(abs(ridge.pred[which(y_test==0)]-y_test[which(y_test==0)]))
+lasso.mae0 <- mean(abs(lasso.pred[which(y_test==0)]-y_test[which(y_test==0)]))
+ranfor.lasso.mae0 <- mean(abs(yhat.bag[which(y_test==0)]-y_test[which(y_test==0)]))
+c(lm.mae0=lm.mae0,ridge.mae0=ridge.mae0,lasso.mae0=lasso.mae0,tree.mae0=tree.mae0,ranfor.lasso.mae0=ranfor.lasso.mae0) #,ranfor.lasso.mae=ranfor.mae)
+
+tree.mae1 <- mean(abs(yhat[which(y_test>0 & y_test <=2500)]-y.test[which(y_test>0 & y_test <=2500)]))
+lm.mae1 <- mean(abs(lm.pred[which(y_test>0 & y_test <=2500)]-y_test[which(y_test>0 & y_test <=2500)]))
+ridge.mae1 <- mean(abs(ridge.pred[which(y_test>0 & y_test <=2500)]-y_test[which(y_test>0 & y_test <=2500)]))
+lasso.mae1 <- mean(abs(lasso.pred[which(y_test>0 & y_test <=2500)]-y_test[which(y_test>0 & y_test <=2500)]))
+ranfor.lasso.mae1 <- mean(abs(yhat.bag[which(y_test>0 & y_test <=2500)]-y_test[which(y_test>0 & y_test <=2500)]))
+c(lm.mae1=lm.mae1,ridge.mae1=ridge.mae1,lasso.mae1=lasso.mae1,tree.mae1=tree.mae1,ranfor.lasso.mae1=ranfor.lasso.mae1) #,ranfor.lasso.mae=ranfor.mae)
+
+tree.mae2 <- mean(abs(yhat[which(y_test>2500 & y_test <10000)]-y.test[which(y_test>2500 & y_test <10000)]))
+lm.mae2 <- mean(abs(lm.pred[which(y_test>2500 & y_test <10000)]-y_test[which(y_test>2500 & y_test <10000)]))
+ridge.mae2 <- mean(abs(ridge.pred[which(y_test>2500 & y_test <10000)]-y_test[which(y_test>2500 & y_test <10000)]))
+lasso.mae2 <- mean(abs(lasso.pred[which(y_test>2500 & y_test <10000)]-y_test[which(y_test>2500 & y_test <10000)]))
+ranfor.lasso.mae2 <- mean(abs(yhat.bag[which(y_test>2500 & y_test <10000)]-y_test[which(y_test>2500 & y_test <10000)]))
+c(lm.mae2=lm.mae2,ridge.mae2=ridge.mae2,lasso.mae2=lasso.mae2,tree.mae2=tree.mae2,ranfor.lasso.mae2=ranfor.lasso.mae2) #,ranfor.lasso.mae=ranfor.mae)
+
+tree.mae3 <- mean(abs(yhat[which(y_test >10000)]-y.test[which(y_test >10000)]))
+lm.mae3 <- mean(abs(lm.pred[which(y_test >10000)]-y_test[which(y_test >10000)]))
+ridge.mae3 <- mean(abs(ridge.pred[which(y_test >10000)]-y_test[which(y_test >10000)]))
+lasso.mae3 <- mean(abs(lasso.pred[which(y_test >10000)]-y_test[which(y_test >10000)]))
+ranfor.lasso.mae3 <- mean(abs(yhat.bag[which(y_test >10000)]-y_test[which(y_test >10000)]))
+c(lm.mae3=lm.mae3,ridge.mae3=ridge.mae3,lasso.mae3=lasso.mae3,tree.mae3=tree.mae3,ranfor.lasso.mae3=ranfor.lasso.mae3) #,ranfor.lasso.mae=ranfor.mae)
