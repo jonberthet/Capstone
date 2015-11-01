@@ -24,9 +24,16 @@ training_set <- df[train,]
 testing_set <- df[-train,]
 
 #Multicollinearity of numeric variables and removal of highly correlated variables
-zv<-apply(training_set,2,function(x) length(unique(x))==1) #code for zero variance predictors
-sum(zv)
-training_set<-training_set[,!zv] #remove zero variance predictors
+zerovariance<-nearZeroVar(training_set, saveMetrics=TRUE)
+#zv<-nearZeroVar(training_set, uniqueCut=, freqCut=9)
+nrow(zerovariance[zerovariance[,"zeroVar"]=="TRUE",])
+#zerovariance[zerovariance$nzv,][1:50,]
+#zv<-subset(zerovariance, zeroVar=='TRUE')
+#zv<-zerovariance[zerovariance[,"zeroVar"]=="TRUE",]
+training_set<-training_set[,zerovariance$zeroVar==FALSE]
+#zv<-apply(training_set,2,function(x) length(unique(x))==1) #code for zero variance predictors
+#sum(zv)
+#training_set<-training_set[,!zv] #remove zero variance predictors
 
 ncol(training_set)
 dfCorr<-cor(training_set) #build correlation matrix
@@ -88,8 +95,12 @@ durbinwatson<-durbinWatsonTest(fulllm)
 #Global test for model assumptions
 gvmodel<-gvlma(fulllm)
 summary(gvmodel)
+
 #Predict on test set
+testlm<-lm(y2_charges~., data=testdf)
 pred<-predict(fulllm, newdata=testdf)
+ftestlm.MSE <- mean((testlm$fitted.values - testdf$y2_charges)^2)
+ftestlm.MSE
 summary(pred)
 
 #Look at predictors correlation to Y
@@ -101,12 +112,33 @@ summary(pred)
 #Perform PCA
 set.seed(10)
 patient_matrixpca<-patient_matrix
-patient_matrixpca$y2_charges<-NULL
 
-zv<-apply(patient_matrixpca,2,function(x) length(unique(x))==1) #code for zero variance predictors
-sum(zv)
-patient_matrixpca<-patient_matrixpca[,!zv] #remove zero variance predictors
+patient_matrixpca$patient_id<-NULL
+patient_matrixpca$mode_discharge_dispo<-NULL
+patient_matrixpca$sex<-NULL
+patient_matrixpca$race<-NULL
+patient_matrixpca$ethnicity<-NULL
+patient_matrixpca$marital_status<-NULL
+trainpca<-createDataPartition(patient_matrixpca$y2_charges, p=0.7, list=FALSE)
+#train<- sample(1:nrow(df),floor(0.7*nrow(df)))
+training_set_pca <- patient_matrixpca[trainpca,]
+testing_set_pca <- patient_matrixpca[-trainpca,]
 
+
+
+zvpca<-nearZeroVar(training_set_pca, saveMetrics=TRUE)
+
+nrow(zvpca[zvpca[,"zeroVar"]=="TRUE",])
+
+training_set_pca<-training_set_pca[,(zvpca$zeroVar==FALSE)]
+
+training_set_pca$y2_charges<-NULL
+
+train_int<-training_set_pca[8:4311]
+
+
+
+#
 classes<-list()
 for (i in 1:ncol(patient_matrixpca)){
   classes[i]<-class(patient_matrixpca[,i])
@@ -114,12 +146,19 @@ for (i in 1:ncol(patient_matrixpca)){
 trainpca <- sample(1:nrow(patient_matrixpca),floor(0.7*nrow(patient_matrixpca)))
 training_set_pca<- patient_matrixpca[trainpca,]
 testing_set_pca <- patient_matrixpca[-trainpca,]
+training_set_pca$y2_charges<-NULL
+
+
+
+
+#zv<-nearZeroVar(training_set_pca)
+#training_set_pca<-training_set_pca[,-zv]
 #collect numeric columns into a single data frame 
 train_num<-training_set_pca[,c(which(classes=="numeric"))]
 train_num1<-cbind(training_set_pca$patient_id, as.data.frame(train_num))
 names(train_num1)[1]<-"patient_id"
 #collect integer columns into a single data frame
-train_int<-training_set_pca[,c(which(classes=="integer"))]
+train_int<-training_set_pca[14:4309]
 #collect categorical columns into seperate data fram 
 train_cat<-training_set_pca[,c(which(classes=="factor"))]
 test_num<-testing_set_pca[,c(which(classes=="numeric"))]
@@ -130,10 +169,12 @@ test_int<-testing_set_pca[,c(which(classes=="integer"))]
 #Make integers numeric and cbind back into numeric piece
 train_num2<-apply(train_int,2,as.numeric)
 train_num<-cbind(train_num1, as.data.frame(train_num2))
+train_num$sex<-NULL
+train_num$X110<-as.numeric(train_num$X110)
 train_num$patient_id<-NULL  #(how can you use patient_id??)
 PCA<-preProcess(train_num,method=c("pca"))
 
-
+#bind back y variable
 
 #bind back categorical variables - look at grace's code for PCA : create transformed data, take vector of year two costs and remove from input, then bind back in.
 #xTrans<-preProcess(train_num, method=c("center","scale", "pca"))
@@ -177,7 +218,7 @@ fit.ctree.party
 getModelInfo("rpart", FALSE)[[1]]$grid
 modelLookup("rpart")
 treefit<-train(x1_train, y1_train,method="rpart2", maxdepth=3)
-
+min(treefit$resample[1])
 #nncontrol<-trainControl(method="LOOCV", seeds=seeds)
 getModelInfo("mlp", FALSE)[[1]]$grid
 modelLookup("mlp")
