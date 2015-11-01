@@ -35,11 +35,13 @@ training_set<-training_set[,zerovariance$zeroVar==FALSE]
 #sum(zv)
 #training_set<-training_set[,!zv] #remove zero variance predictors
 
+
+
 ncol(training_set)
 dfCorr<-cor(training_set) #build correlation matrix
 highCorr<-findCorrelation(dfCorr, 0.7) #find all pairwise correlations greater than 0.7
 traindf<-training_set[,-highCorr] #remove highly correlated predictors from training set
-testdf<-testing_set[,-highCorr] #remove highly correlated predictors from testing set
+testdf<-testing_set 
 ncol(traindf)
 ncol(testdf)
 
@@ -99,9 +101,12 @@ summary(gvmodel)
 #Predict on test set
 testlm<-lm(y2_charges~., data=testdf)
 pred<-predict(fulllm, newdata=testdf)
-ftestlm.MSE <- mean((testlm$fitted.values - testdf$y2_charges)^2)
-ftestlm.MSE
-summary(pred)
+lmRMSE<-sqrt(mean((pred- testdf$y2_charges)^2))
+lmRMSE 
+lmMAE<-mean(abs(pred- testdf$y2_charges))
+lmMAE
+
+
 
 #Look at predictors correlation to Y
 
@@ -134,53 +139,22 @@ training_set_pca<-training_set_pca[,(zvpca$zeroVar==FALSE)]
 
 training_set_pca$y2_charges<-NULL
 
-train_int<-training_set_pca[8:4311]
 
-
-
-#
 classes<-list()
-for (i in 1:ncol(patient_matrixpca)){
-  classes[i]<-class(patient_matrixpca[,i])
+for (i in 1:ncol(training_set_pca)){
+  classes[i]<-class(training_set_pca[,i])
 }
-trainpca <- sample(1:nrow(patient_matrixpca),floor(0.7*nrow(patient_matrixpca)))
-training_set_pca<- patient_matrixpca[trainpca,]
-testing_set_pca <- patient_matrixpca[-trainpca,]
-training_set_pca$y2_charges<-NULL
+test_int<-training_set_pca[,c(which(classes=="integer"))]
+train_num1<-training_set_pca[,c(which(classes=="numeric"))]
 
-
-
-
-#zv<-nearZeroVar(training_set_pca)
-#training_set_pca<-training_set_pca[,-zv]
-#collect numeric columns into a single data frame 
-train_num<-training_set_pca[,c(which(classes=="numeric"))]
-train_num1<-cbind(training_set_pca$patient_id, as.data.frame(train_num))
-names(train_num1)[1]<-"patient_id"
-#collect integer columns into a single data frame
-train_int<-training_set_pca[14:4309]
-#collect categorical columns into seperate data fram 
-train_cat<-training_set_pca[,c(which(classes=="factor"))]
-test_num<-testing_set_pca[,c(which(classes=="numeric"))]
-test_cat<-testing_set_pca[,c(which(classes=="factor"))]
-test_int<-testing_set_pca[,c(which(classes=="integer"))]
-
-
-#Make integers numeric and cbind back into numeric piece
 train_num2<-apply(train_int,2,as.numeric)
 train_num<-cbind(train_num1, as.data.frame(train_num2))
-train_num$sex<-NULL
-train_num$X110<-as.numeric(train_num$X110)
-train_num$patient_id<-NULL  #(how can you use patient_id??)
+
 PCA<-preProcess(train_num,method=c("pca"))
+
 
 #bind back y variable
 
-#bind back categorical variables - look at grace's code for PCA : create transformed data, take vector of year two costs and remove from input, then bind back in.
-#xTrans<-preProcess(train_num, method=c("center","scale", "pca"))
-
-#xtrain<-predict(xTrans, training_set_pca)
-#xtest<-predict(xTrans, testing_set_pca)
 
 #re-run linear models
 fulllmpca<-lm(y2_charges~., data=xtrain)  #what do you use as the response variable?
@@ -239,7 +213,38 @@ gbmFit
 #Show model comparisons
 
 #predict of new samples
+predValuesparty<-predict(fit.ctree.party, newdata=testing_set_tree)
+RMSE.test.party<-RMSE(obs=y1_test, pred=predValuesparty)
+RMSE.test.party
+partymae<-mean(abs(predValuesparty-y1_test))
+partymae
 
+
+predValuesGBM<-predict(gbmFit, testX=x1_test, testY=y1_test)
+RMSE.test.gbm<-RMSE(obs=y1_test, pred=predValuesGBM)
+RMSE.test.gbm
+gbmmae<-mean(abs(predValuesGBM-y1_test))
+gbmmae
+
+
+predValuestree<-predict(treefit, testX=x1_test, testY=y1_test)
+RMSE.test.tree<-RMSE(obs=y1_test, pred=predValuestree)
+RMSE.test.tree
+treemae<-mean(abs(predValuestree-y1_test))
+treemae
+
+
+
+
+
+
+#trials
+testValues<-subset(predValues, dataType=="Test")
+table(testValues$model)
+rpart2Pred<-subset(testValues, model=="rpart2")
+rpart2Pred
+
+testpredict<-predict(models, newdata=testing_set_tree)
 predict(treefit$finalModel, newdata=testing_set_tree)
 
 predict(treefit, newdata=testing_set_tree)
