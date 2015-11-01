@@ -126,41 +126,64 @@ patient_matrixpca$ethnicity<-NULL
 patient_matrixpca$marital_status<-NULL
 trainpca<-createDataPartition(patient_matrixpca$y2_charges, p=0.7, list=FALSE)
 #train<- sample(1:nrow(df),floor(0.7*nrow(df)))
-training_set_pca <- patient_matrixpca[trainpca,]
-testing_set_pca <- patient_matrixpca[-trainpca,]
+training_set_pca1 <- patient_matrixpca[trainpca,]
+testing_set_pca1 <- patient_matrixpca[-trainpca,]
 
 
 
-zvpca<-nearZeroVar(training_set_pca, saveMetrics=TRUE)
-
+zvpca<-nearZeroVar(training_set_pca1, saveMetrics=TRUE)
+zvpcatest<-nearZeroVar(testing_set_pca1, saveMetrics=TRUE)
 nrow(zvpca[zvpca[,"zeroVar"]=="TRUE",])
 
-training_set_pca<-training_set_pca[,(zvpca$zeroVar==FALSE)]
-
+training_set_pca1<-training_set_pca1[,(zvpca$zeroVar==FALSE)]
+testing_set_pca1<-testing_set_pca1[,(zvpcatest$zeroVar==FALSE)]
+training_set_pca<-training_set_pca1
+testing_set_pca<-testing_set_pca1
 training_set_pca$y2_charges<-NULL
-
+testing_set_pca$y2_charges<-NULL
 
 classes<-list()
 for (i in 1:ncol(training_set_pca)){
   classes[i]<-class(training_set_pca[,i])
 }
-test_int<-training_set_pca[,c(which(classes=="integer"))]
+
+train_int<-training_set_pca[,c(which(classes=="integer"))]
 train_num1<-training_set_pca[,c(which(classes=="numeric"))]
 
 train_num2<-apply(train_int,2,as.numeric)
 train_num<-cbind(train_num1, as.data.frame(train_num2))
 
+classes<-list()
+for (i in 1:ncol(testing_set_pca)){
+  classes[i]<-class(testing_set_pca[,i])
+}
+test_int<-testing_set_pca[,c(which(classes=="integer"))]
+test_num1<-testing_set_pca[,c(which(classes=="numeric"))]
+
+test_num2<-apply(test_int,2,as.numeric)
+test_num<-cbind(test_num1, as.data.frame(test_num2))
+
 PCA<-preProcess(train_num,method=c("pca"))
-
-
-#bind back y variable
+PCAtest<-preProcess(test_num,method=c("pca"))
+trainpca<-predict(PCA, train_num)
+testpca<-predict(PCAtest, test_num)
+y2_charges<-training_set_pca1$y2_charges
+y2_chargestest<-testing_set_pca1$y2_charges
+pcadata<-cbind(trainpca, y2_charges)
+pcatest<-cbind(testpca, y2_chargestest)
 
 
 #re-run linear models
-fulllmpca<-lm(y2_charges~., data=xtrain)  #what do you use as the response variable?
+fulllmpca<-lm(y2_charges~., data=pcadata)  
 summary(fulllmpca)
-fulllm.MSE.pca <- mean((fulllmpca$fitted.values - xtrain$y2_charges)^2) #response variable?
+fulllm.MSE.pca <- mean((fulllmpca$fitted.values - xtrain$y2_charges)^2) 
 fulllm.MSE.pca
+
+predpca<-predict(fulllmpca, newdata=pcatest)
+lmRMSEpca<-sqrt(mean((predpca- testpca$y2_charges)^2))
+lmRMSEpca 
+lmMAEpca<-mean(abs(predpca- testpca$y2_charges))
+lmMAEpca
 #Machine learning models
 #regression tree
 dftree<-patient_matrix
