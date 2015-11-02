@@ -8,7 +8,7 @@ library(lmtest)
 library(sandwich)
 load("/project/msca/capstone3/patient_matrix2revise.RData")
 load("/project/msca/kjtong/capstone.october.RData")
-#load("/project/msca/capstone3/Octoberfinalmodels.RData")
+load("/project/msca/capstone3/Octoberfinalmodels.RData")
 #Test and Train for Multicollinearity on numerical variables
 set.seed(10)
 df<-patient_matrix
@@ -256,10 +256,68 @@ RMSE.test.tree
 treemae<-mean(abs(predValuestree-y1_test))
 treemae
 
+#cost buckets
+
+load(file="/project/msca/capstone3/modeling_grace.RData")
+
+# create cost buckets with similar numbers of patients in each.
+length(y_test[which(y_test==0)]) #3043 patients in the test set have $0 y2 costs
+length(y_test[which(y_test>0 & y_test <=2500)])#3502 patients
+length(y_test[which(y_test>2500 & y_test <10000)])#3209 patients
+length(y_test[which(y_test >10000)]) #3450 patients
+
+# calculate rmse for each model run
+tree.rpart.rmse0 <- sqrt(mean((predValuestree[which(y1_test==0)]-y1_test[which(y1_test==0)])^2))
+lm.baseline.rmse0 <- sqrt(mean((pred[which(testdf$y2_charges==0)]-testdf$y2_charges[which(testdf$y2_charges==0)])^2))
+gbm.rmse0 <- sqrt(mean((predValuesGBM[which(y1_test==0)]-y1_test[which(y1_test==0)])^2))
+party.rmse0 <- sqrt(mean((predValuesparty[which(y1_test==0)]-y1_test[which(y1_test==0)])^2))
 
 
+tree.rpart.rmse1 <- sqrt(mean((predValuestree[which(y1_test>0 & y1_test <=2500)]-y1_test[which(y1_test>0 & y1_test <=2500)])^2))
+lm.baseline.rmse1 <- sqrt(mean((pred[which(testdf$y2_charges>0 & testdf$y2_charges <=2500)]-testdf$y2_charges[which(testdf$y2_charges>0 & testdf$y2_charges <=2500)])^2))
+gbm.rmse1 <- sqrt(mean((predValuesGBM[which(y1_test>0 & y1_test <=2500)]-y1_test[which(y1_test>0 & y1_test <=2500)])^2))
+party.rmse1 <- sqrt(mean((predValuesparty[which(y1_test>0 & y1_test <=2500)]-y1_test[which(y1_test>0 & y1_test <=2500)])^2))
 
+tree.rpart.rmse2 <- sqrt(mean((predValuestree[which(y1_test>2500 & y1_test <10000)]-y1_test[which(y1_test>2500 & y1_test <10000)])^2))
+lm.baseline.rmse2 <- sqrt(mean((pred[which(testdf$y2_charges>2500 & testdf$y2_charges <10000)]-testdf$y2_charges[which(testdf$y2_charges>2500 & testdf$y2_charges <10000)])^2))
+gbm.rmse2 <- sqrt(mean((predValuesGBM[which(y1_test>2500 & y1_test <10000)]-y1_test[which(y1_test>2500 & y1_test <10000)])^2))
+party.rmse2 <- sqrt(mean((predValuesparty[which(y1_test>2500 & y1_test <10000)]-y1_test[which(y1_test>2500 & y1_test <10000)])^2))
 
+tree.rpart.rmse3 <- sqrt(mean((predValuestree[which(y1_test >10000)]-y1_test[which(y1_test >10000)])^2))
+lm.baseline.rmse3 <- sqrt(mean((pred[which(testdf$y2_charges >10000)]-testdf$y2_charges[which(testdf$y2_charges >10000)])^2))
+gbm.rmse3 <- sqrt(mean((predValuesGBM[which(y1_test >10000)]-y1_test[which(y1_test >10000)])^2))
+party.rmse3 <- sqrt(mean((predValuesparty[which(y1_test >10000)]-y1_test[which(y1_test >10000)])^2))
+
+tree.rpart.rmse0;lm.baseline.rmse0;gbm.rmse0;party.rmse0
+tree.rpart.rmse1;lm.baseline.rmse1;gbm.rmse1;party.rmse1
+tree.rpart.rmse2;lm.baseline.rmse2;gbm.rmse2;party.rmse2
+tree.rpart.rmse3;lm.baseline.rmse3;gbm.rmse3;party.rmse3
+
+# calculate mae for each model run
+tree.rpart.mae0 <- mean(abs(predValuestree[which(y1_test==0)]-y1_test[which(y1_test==0)]))
+lm.baseline.mae0 <- mean(abs(pred[which(testdf$y2_charges==0)]-testdf$y2_charges[which(testdf$y2_charges==0)]))
+gbm.mae0 <- mean(abs(predValuesGBM[which(y1_test==0)]-y1_test[which(y1_test==0)]))
+party.mae0 <- mean(abs(predValuesparty[which(y1_test==0)]-y1_test[which(y1_test==0)]))
+
+tree.rpart.mae1 <- mean(abs(predValuestree[which(y1_test>0 & y1_test <=2500)]-y1_test[which(y1_test>0 & y1_test <=2500)]))
+lm.baseline.mae1 <- mean(abs(pred[which(testdf$y2_charges>0 & testdf$y2_charges <=2500)]-testdf$y2_charges[which(testdf$y2_charges>0 & testdf$y2_charges <=2500)]))
+gbm.mae1 <- mean(abs(predValuesGBM[which(y1_test>0 & y1_test <=2500)]-y1_test[which(y1_test>0 & y1_test <=2500)]))
+party.mae1 <- mean(abs(predValuesparty[which(y1_test>0 & y1_test <=2500)]-y1_test[which(y1_test>0 & y1_test <=2500)]))
+
+tree.rpart.mae2 <- mean(abs(predValuestree[which(y1_test>2500 & y1_test <10000)]-y1_test[which(y1_test>2500 & y1_test <10000)]))
+lm.baseline.mae2 <- mean(abs(pred[which(testdf$y2_charges>2500 & testdf$y2_charges <10000)]-testdf$y2_charges[which(testdf$y2_charges>2500 & testdf$y2_charges <10000)]))
+gbm.mae2 <- mean(abs(predValuesGBM[which(y1_test>2500 & y1_test <10000)]-y1_test[which(y1_test>2500 & y1_test <10000)]))
+party.mae2 <- mean(abs(predValuesparty[which(y1_test>2500 & y1_test <10000)]-y1_test[which(y1_test>2500 & y1_test <10000)]))
+
+tree.rpart.mae3 <- mean(abs(predValuestree[which(y1_test >10000)]-y1_test[which(y1_test >10000)]))
+lm.baseline.mae3 <- mean(abs(pred[which(testdf$y2_charges >10000)]-testdf$y2_charges[which(testdf$y2_charges >10000)]))
+gbm.mae3 <- mean(abs(predValuesGBM[which(y1_test >10000)]-y1_test[which(y1_test >10000)]))
+party.mae3 <- mean(abs(predValuesparty[which(y1_test >10000)]-y1_test[which(y1_test >10000)]))
+
+tree.rpart.mae0;lm.baseline.mae0;gbm.mae0;party.mae0
+tree.rpart.mae1;lm.baseline.mae1;gbm.mae1;party.mae1
+tree.rpart.mae2;lm.baseline.mae2;gbm.mae2;party.mae2
+tree.rpart.mae3;lm.baseline.mae3;gbm.mae3;party.mae3
 
 #trials
 testValues<-subset(predValues, dataType=="Test")
