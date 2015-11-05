@@ -1,6 +1,7 @@
 library(plyr)
 library(caret)
 library(e1071)
+library(kernlab)
 load("/project/msca/capstone3/patient_matrix2revise.RData")
 load("/project/msca/capstone3/Octoberfinalmodels.RData")
 nrow(patient_matrix)#44011 observations
@@ -88,9 +89,16 @@ c1 <- training.set[training.set$chargesClustered == 1,]
 c2 <- training.set[training.set$chargesClustered == 2,]
 c3 <- training.set[training.set$chargesClustered == 3,]
 
+save(training.set, testing.set, validation.set, c1, c2, c3, file="/project/msca/capstone3/datasplits.RData")
 
 #Build SVM
-
+training.setsvm<-training.set
+training.setsvm$patient_id<-NULL
 svm.model<-svm(chargesClustered1~., data=training.set)
 svm.model2<-svm(chargesClustered2~.,data=training.set)
 svm.model3<-svm(chargesClustered3~.,data=training.set)
+
+
+bootControl<-trainControl(number=200)
+set.seed(10)
+svm.model1<-train(chargesClustered1~., data=training.set, method="svmRadial", tuneLength=5, trControl=bootControl, scaled=FALSE)
