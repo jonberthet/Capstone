@@ -4,6 +4,7 @@ library(e1071)
 library(kernlab)
 load("/project/msca/capstone3/patient_matrix2revise.RData")
 load("/project/msca/capstone3/Octoberfinalmodels.RData")
+#Exploratory analysis of charges
 nrow(patient_matrix)#44011 observations
 hist(patient_matrix$y2_charges)
 zero<-subset(patient_matrix, y2_charges==0) #10008 observations; 22.7% of patients
@@ -105,3 +106,4 @@ svm.model3<-svm(chargesClustered3~.,data=training.setsvm)
 bootControl<-trainControl(number=200)
 set.seed(10)
 svm.model1<-train(chargesClustered1~., data=training.setsvm, method="svmRadial", tuneLength=5, trControl=bootControl, scaled=FALSE)
+svm.model1$finalModel
