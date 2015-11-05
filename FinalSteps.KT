@@ -67,8 +67,11 @@ training.set1<-cbind(training.set, chargesClustered = km.charges$cluster)
 col_idx<-grep("chargesClustered",names(training.set1))
 training.set1<-training.set1[,c(col_idx,(1:ncol(training.set1))[-col_idx])]
 
+#create dummy variables for clusters
 for(t in unique(training.set1$chargesClustered)){training.set1[paste("chargesClustered", t, sep="")]<-ifelse(training.set1$chargesClustered==t,1,0)}
 
+
+#re-order variables in data frame
 col_idx1<-grep("chargesClustered1",names(training.set1))
 training.set1<-training.set1[,c(col_idx1,(1:ncol(training.set1))[-col_idx1])]
 
@@ -94,11 +97,11 @@ save(training.set, testing.set, validation.set, c1, c2, c3, file="/project/msca/
 #Build SVM
 training.setsvm<-training.set
 training.setsvm$patient_id<-NULL
-svm.model<-svm(chargesClustered1~., data=training.set)
-svm.model2<-svm(chargesClustered2~.,data=training.set)
-svm.model3<-svm(chargesClustered3~.,data=training.set)
+svm.model<-svm(chargesClustered1~., data=training.setsvm)
+svm.model2<-svm(chargesClustered2~.,data=training.setsvm)
+svm.model3<-svm(chargesClustered3~.,data=training.setsvm)
 
 
 bootControl<-trainControl(number=200)
 set.seed(10)
-svm.model1<-train(chargesClustered1~., data=training.set, method="svmRadial", tuneLength=5, trControl=bootControl, scaled=FALSE)
+svm.model1<-train(chargesClustered1~., data=training.setsvm, method="svmRadial", tuneLength=5, trControl=bootControl, scaled=FALSE)
