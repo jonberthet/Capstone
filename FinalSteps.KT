@@ -92,3 +92,5 @@ c3 <- training.set[training.set$chargesClustered == 3,]
 #Build SVM
 
 svm.model<-svm(chargesClustered1~., data=training.set)
+svm.model2<-svm(chargesClustered2~.,data=training.set)
+svm.model3<-svm(chargesClustered3~.,data=training.set)
