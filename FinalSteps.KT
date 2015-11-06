@@ -3,6 +3,7 @@ library(caret)
 library(e1071)
 library(kernlab)
 library(sqldf)
+library(tree)
 load("/project/msca/capstone3/patient_matrix2revise.RData")
 load("/project/msca/capstone3/Octoberfinalmodels.RData")
 #Exploratory analysis of charges
@@ -58,6 +59,44 @@ validation.set<-totalvalidation.set[-invalidation,]
 save(training.set, testing.set, validation.set,file="/project/msca/capstone3/datasplits.RData")
 
 
+#Build SVM
+trainingset<-training.set
+
+totalcharges<-sum(training.set$y2_charges)
+lowsvm<-subset(training.set, y2_charges<3000)
+totalchargeslow<-sum(lowsvm$y2_charges)
+totalchargeslow/totalcharges #low subset represents 2.7% of the total charges
+highsvm<-subset(training.set, y2_charges>=3000)
+highsvm$high<-1
+#col_idx5<-grep("high",names(highsvm))
+#highsvm<-highsvm[,c(col_idx5,(1:ncol(highsvm))[-col_idx5])]
+join_stringhigh<-"select trainingset.*, highsvm.high from trainingset left join highsvm on trainingset.patient_id=highsvm.patient_id"
+trainingsetsvm<-sqldf(join_stringhigh, stringsAsFactors=FALSE)
+col_idx6<-grep("high",names(trainingsetsvm))
+trainingsetsvm<-trainingsetsvm[,c(col_idx6,(1:ncol(trainingsetsvm))[-col_idx6])]
+trainingsetsvm[is.na(trainingsetsvm)]<-0
+
+
+svmmulti<-ksvm(high~y1_charges, data=trainingsetsvm, type="C-svc", kernel="rbfdot")
+svmmulti
+
+
+
+#Predict on testing set
+predclass<-predict(svmmulti, newdata=testing.set)
+
+
+
+
+
+
+
+
+
+
+
+
+#Save possibly for later if we want to cluster
 #Create clusters on training set
 set.seed(10)
 km.charges <- kmeans(data.matrix(training.set[,10]), 2, nstart=50)
@@ -70,64 +109,31 @@ col_idx<-grep("chargesClustered",names(training.set1))
 training.set1<-training.set1[,c(col_idx,(1:ncol(training.set1))[-col_idx])]
 
 #create dummy variables for clusters
-for(t in unique(training.set1$chargesClustered)){training.set1[paste("chargesClustered", t, sep="")]<-ifelse(training.set1$chargesClustered==t,1,0)}
+#for(t in unique(training.set1$chargesClustered)){training.set1[paste("chargesClustered", t, sep="")]<-ifelse(training.set1$chargesClustered==t,1,0)}
 
 
 #re-order variables in data frame
-col_idx1<-grep("chargesClustered1",names(training.set1))
-training.set1<-training.set1[,c(col_idx1,(1:ncol(training.set1))[-col_idx1])]
+#col_idx1<-grep("chargesClustered1",names(training.set1))
+#training.set1<-training.set1[,c(col_idx1,(1:ncol(training.set1))[-col_idx1])]
 
-col_idx2<-grep("chargesClustered2",names(training.set1))
-training.set1<-training.set1[,c(col_idx2,(1:ncol(training.set1))[-col_idx2])]
+#col_idx2<-grep("chargesClustered2",names(training.set1))
+#training.set1<-training.set1[,c(col_idx2,(1:ncol(training.set1))[-col_idx2])]
 
-col_idx3<-grep("chargesClustered3",names(training.set1))
-training.set1<-training.set1[,c(col_idx3,(1:ncol(training.set1))[-col_idx3])]
+#col_idx3<-grep("chargesClustered3",names(training.set1))
+#training.set1<-training.set1[,c(col_idx3,(1:ncol(training.set1))[-col_idx3])]
 
-col_idx4<-grep("patient_id",names(training.set1))
-training.set1<-training.set1[,c(col_idx4,(1:ncol(training.set1))[-col_idx4])]
+#col_idx4<-grep("patient_id",names(training.set1))
+#training.set1<-training.set1[,c(col_idx4,(1:ncol(training.set1))[-col_idx4])]
 
-training.set<-training.set1
+#training.set<-training.set1
 
 #Create 3 datasets for the clusters to build models in
 
-c1 <- training.set[training.set$chargesClustered == 1,]
-c2 <- training.set[training.set$chargesClustered == 2,]
-c3 <- training.set[training.set$chargesClustered == 3,]
+#c1 <- training.set[training.set$chargesClustered == 1,]
+#c2 <- training.set[training.set$chargesClustered == 2,]
+#c3 <- training.set[training.set$chargesClustered == 3,]
 
-save(training.set, testing.set, validation.set, c1, c2, c3, file="/project/msca/capstone3/datasplits.RData")
-
-#Build SVM
-training.setsvm<-training.set
-training.setsvm$patient_id<-NULL
-svm.model<-svm(chargesClustered1~., data=training.setsvm)
-svm.model2<-svm(chargesClustered2~.,data=training.setsvm)
-svm.model3<-svm(chargesClustered3~.,data=training.setsvm)
+#save(training.set, testing.set, validation.set, c1, c2, c3, file="/project/msca/capstone3/datasplits.RData")
 
 
-bootControl<-trainControl(number=200)
-set.seed(10)
-svm.model1<-train(chargesClustered1~., data=training.setsvm, method="svmRadial", tuneLength=5, trControl=bootControl, scaled=FALSE)
-svm.model1$finalModel
 
-svm.model2<-train(chargesClustered2~., data=training.setsvm, method="svmRadial", tuneLength=5, trControl=bootControl, scaled=FALSE)
-svm.model2$finalModel
-
-
-totalcharges<-sum(training.set$y2_charges)
-lowsvm<-subset(training.set, y2_charges<15000)
-66165733/356577371 #low subset represents 18.6% of the total charges
-totalchargeslow<-sum(lowsvm$y2_charges)
-highsvm<-subset(training.set, y2_charges>=15000)
-highsvm$high<-1
-col_idx5<-grep("high",names(highsvm))
-highsvm<-highsvm[,c(col_idx5,(1:ncol(highsvm))[-col_idx5])]
-trainingset<-training.set
-join_stringhigh<-"select trainingset.*, highsvm.high from trainingset left join highsvm on trainingset.patient_id=highsvm.patient_id"
-trainingsetsvm<-sqldf(join_stringhigh, stringsAsFactors=FALSE)
-col_idx6<-grep("high",names(trainingsetsvm))
-trainingsetsvm<-trainingsetsvm[,c(col_idx6,(1:ncol(trainingsetsvm))[-col_idx6])]
-trainingsetsvm[is.na(trainingsetsvm)]<-0
-
-
-svmmulti<-ksvm(high~., data=trainingsetsvm, scaled=TRUE, type="spoc-svc", kernel="rbfdot")
-svmmulti
