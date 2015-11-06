@@ -381,8 +381,8 @@ load("/project/msca/capstone3/all_tables_appended.RData")
 load("/project/msca/capstone3/patient_matrix_centered.RData") #loads as the data frame "patient_matrix"
 
 # Step 5a, cont'd: explore the data sets
-dim(patient_matrix) #48105    14
-length(levels(as.factor(patient_matrix$patient_id))) #48105
+dim(patient_matrix) #57528    14
+length(levels(as.factor(patient_matrix$patient_id))) #57528
 length(levels(as.factor(chargesPOA$Patient_ID))) # 7655
 names(icd9Dx)
 dim(icd9Dx) #884803      6
@@ -405,18 +405,18 @@ dim(diag2) #[1] 11628     3
 diag2 <- diag2[,c(2,1,3)]
 names(diag2) <- names(diag)
 diag <- rbind(diag,diag2)# warning, but I checked and it's ok
-length(which(is.na(diag$patient_id)))#11623
+length(which(is.na(diag$patient_id)))#11627
 nrow(diag)#382,700
 # remove duplicate rows
 diag <- unique(diag)
 head(diag)
-nrow(unique(diag))#372777 
-nrow(patient_matrix) #48105
+nrow(unique(diag))#372777 OR #372377
+nrow(patient_matrix) #57528
 length(unique(diag$patient_id))#45231
 # the number of unique patients for which we have diagnosis is 45231
 # the number of unique patients in our existing patient matrix is 48105
 
-sum(unique(diag$patient_id) %in% patient_matrix$patient_id) #44493
+sum(unique(diag$patient_id) %in% patient_matrix$patient_id) #45230
 # so we have 44493 patients with both charges data (and demog. data) AND diagnosis data
 # so there's a trade-off between (a) having more patients and (b) having patients with diagnosis data.
 # Acknowledging this tradeoff, we choose to incorporate patients with diagnosis data
@@ -437,7 +437,7 @@ sum(is.na(diag$above_cutoff))#1305
 sum(is.na(diag$above_cutoff))
 # remove all encounters above the cutoff date
 diag <- subset(diag,above_cutoff==0)
-dim(diag)#[1] 187548      4
+dim(diag)#[1] 189087      4
 length(levels(diag$ICD_9_CM_Diagnosis_Principal))#5031
 
 # Step 5d: summarize by patient the number of times the person has had a particular ICD9 as their primary diagnosis in year1
@@ -463,7 +463,8 @@ save(diag2, file="/project/msca/capstone3/diag2.RData")
 
 # Step 5e: merge diag2 to patient-level matrix by overlapping patient_id
 # THIS IS OUR FINAL DATA FRAME
-patient_matrix2 <- merge(patient_matrix,diag2)
+patient_matrix2 <- merge(patient_matrix,diag2,all=T)
+patient_matrix2[is.na(patient_matrix2)] <- 0
 save(patient_matrix2,file="/project/msca/capstone3/patient_matrix2.RData")
 
 # Step 6:
