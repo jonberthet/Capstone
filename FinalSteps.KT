@@ -59,7 +59,7 @@ save(training.set, testing.set, validation.set,file="/project/msca/capstone3/dat
 
 #Create clusters on training set
 set.seed(10)
-km.charges <- kmeans(data.matrix(training.set[,10]), 3, nstart=50)
+km.charges <- kmeans(data.matrix(training.set[,10]), 2, nstart=50)
 plot(data.matrix(training.set[,10]), col = (km.charges$cluster+1), main = "Kmeans Clusters k=3", pch=20, cex=1)
 km.charges$centers
 
@@ -107,3 +107,8 @@ bootControl<-trainControl(number=200)
 set.seed(10)
 svm.model1<-train(chargesClustered1~., data=training.setsvm, method="svmRadial", tuneLength=5, trControl=bootControl, scaled=FALSE)
 svm.model1$finalModel
+
+svm.model2<-train(chargesClustered2~., data=training.setsvm, method="svmRadial", tuneLength=5, trControl=bootControl, scaled=FALSE)
+svm.model2$finalModel
+
+svmmulti<-ksvm(chargesClustered~., data=training.setsvm, scaled=TRUE, type="spoc-svc", kernel="rbfdot")
