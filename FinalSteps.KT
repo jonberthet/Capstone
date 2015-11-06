@@ -2,6 +2,7 @@ library(plyr)
 library(caret)
 library(e1071)
 library(kernlab)
+library(sqldf)
 load("/project/msca/capstone3/patient_matrix2revise.RData")
 load("/project/msca/capstone3/Octoberfinalmodels.RData")
 #Exploratory analysis of charges
@@ -120,9 +121,13 @@ highsvm<-subset(training.set, y2_charges>=15000)
 highsvm$high<-1
 col_idx5<-grep("high",names(highsvm))
 highsvm<-highsvm[,c(col_idx5,(1:ncol(highsvm))[-col_idx5])]
+trainingset<-training.set
+join_stringhigh<-"select trainingset.*, highsvm.high from trainingset left join highsvm on trainingset.patient_id=highsvm.patient_id"
+trainingsetsvm<-sqldf(join_stringhigh, stringsAsFactors=FALSE)
+col_idx6<-grep("high",names(trainingsetsvm))
+trainingsetsvm<-trainingsetsvm[,c(col_idx6,(1:ncol(trainingsetsvm))[-col_idx6])]
+trainingsetsvm[is.na(trainingsetsvm)]<-0
 
 
-
-
-svmmulti<-ksvm(chargesClustered~., data=training.setsvm, scaled=TRUE, type="spoc-svc", kernel="rbfdot")
+svmmulti<-ksvm(high~., data=trainingsetsvm, scaled=TRUE, type="spoc-svc", kernel="rbfdot")
 svmmulti
