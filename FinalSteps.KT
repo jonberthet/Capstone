@@ -111,4 +111,18 @@ svm.model1$finalModel
 svm.model2<-train(chargesClustered2~., data=training.setsvm, method="svmRadial", tuneLength=5, trControl=bootControl, scaled=FALSE)
 svm.model2$finalModel
 
+
+totalcharges<-sum(training.set$y2_charges)
+lowsvm<-subset(training.set, y2_charges<15000)
+66165733/356577371 #low subset represents 18.6% of the total charges
+totalchargeslow<-sum(lowsvm$y2_charges)
+highsvm<-subset(training.set, y2_charges>=15000)
+highsvm$high<-1
+col_idx5<-grep("high",names(highsvm))
+highsvm<-highsvm[,c(col_idx5,(1:ncol(highsvm))[-col_idx5])]
+
+
+
+
 svmmulti<-ksvm(chargesClustered~., data=training.setsvm, scaled=TRUE, type="spoc-svc", kernel="rbfdot")
+svmmulti
