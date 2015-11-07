@@ -27,9 +27,11 @@ save(training.set, testing.set, validation.set,file="/project/msca/capstone3/dat
 library(caret)
 ptm <- proc.time()
 tree_control <- trainControl(method="cv",number=5,returnResamp="all")
-tree01rpart2 <- train(training.set[-c(1,10,ncol(training.set))],training.set$label,method="rpart2",maxdepth=8,trControl=tree_control)#15-min runtime
+tree01rpart2 <- train(training.set[-c(1,10,ncol(training.set))],training.set$label,method="rpart2",maxdepth=8,trControl=tree_control)#12.6-min runtime
 proc.time() - ptm
-save(tree01rpart2,file="/project/msca/capstone3/rpart2class.RData") 
+#save(tree01rpart2,file="/project/msca/capstone3/rpart2class.RData")
+load(save(tree01rpart2,file="/project/msca/capstone3/rpart2class.RData")
+tree.train.pred <- predict(tree01rpart2)
 
 # Step 3b: SVM
 #Build SVM
