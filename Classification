@@ -32,6 +32,29 @@ proc.time() - ptm
 save(tree01rpart2,file="/project/msca/capstone3/rpart2class.RData") 
 
 # Step 3b: SVM
-svmmulti<-ksvm(label~y1_charges, data=training.set, type="C-svc", kernel="rbfdot")
+#Build SVM
+trainingsetsvm<-training.set
+validationsetsvm<-validation.set
+trainingsetsvm$patient_id<-NULL
+trainingsetsvm$y2_charges<-NULL
+validationsetsvm$patient_id<-NULL
+validationsetsvm$y2_charges<-NULL
+trainingsetsvm$label<-as.integer(trainingsetsvm$label)
+validationsetsvm$label<-as.integer(validationsetsvm$label)
+ptm<-proc.time()
+svmmulti<-ksvm(label~., data=trainingsetsvm, type="C-svc", kernel="rbfdot")
+proc.time() - ptm
 svmmulti
+
+
+#Predict on testing set
+
+predclass<-predict(svmmulti, newdata=validationsetsvm)
+
+RMSE.test.svm<-RMSE(validationsetsvm$label, pred=predclass)
+RMSE.test.svm #0.3903267
+svmmae<-mean(abs(predclass-validationsetsvm$label))
+svmmae # 0.1523549
+
+
 
