@@ -42,7 +42,7 @@ validationsetsvm$y2_charges<-NULL
 trainingsetsvm$label<-as.integer(trainingsetsvm$label)
 validationsetsvm$label<-as.integer(validationsetsvm$label)
 ptm<-proc.time()
-svmmulti<-ksvm(label~., data=trainingsetsvm, type="C-svc", kernel="rbfdot")
+svmmulti<-ksvm(label~., data=trainingsetsvm, type="C-svc", kernel="rbfdot", cross=10, C=10, prob.model=F)
 proc.time() - ptm
 svmmulti
 
@@ -52,9 +52,10 @@ svmmulti
 predclass<-predict(svmmulti, newdata=validationsetsvm)
 
 RMSE.test.svm<-RMSE(validationsetsvm$label, pred=predclass)
-RMSE.test.svm #0.3903267
+RMSE.test.svm 
 svmmae<-mean(abs(predclass-validationsetsvm$label))
-svmmae # 0.1523549
+svmmae 
 
 
-
+#bind predicted values to validation set for removal of predicted zeros
+validation.set1<-cbind(predclass, validation.set)#7962 patients non-zero and 85 as zero
