@@ -216,6 +216,7 @@ admissions$half_date_range <- admissions$date_range/2
 # Step 3e: determine each patient's cutoff date: last_admission - 1/2(distance between first and last encounter dates)
 admissions$cutoff_date <- admissions$last_discharge - admissions$half_date_range
 # for patients with only 1 encounter, we randomly add or substract 1 day to their cutoff date
+set.seed(10)
 admissions$rand_samp <- as.difftime(sample(c(-1,1),nrow(admissions),replace=T),unit="days")
 admissions$cutoff_date[which(admissions$num_encounters==1)] <-  admissions$cutoff_date[which(admissions$num_encounters==1)] + admissions$rand_samp[which(admissions$num_encounters==1)]
 
@@ -228,24 +229,24 @@ charges_split <- merge(charges_all, admit_dates[,c(1:2,which(names(admit_dates)=
 charges_split <- merge(charges_split,admissions[,c(which(names(admissions)=="patient_id"),which(names(admissions)=="cutoff_date"))],by="patient_id",all.x=T)
 charges_above <- subset(charges_split,discharge>cutoff_date)#charges above cutoff; note the >= here
 charges_below <- subset(charges_split,discharge<=cutoff_date) #charges below cutoff;
-nrow(charges_above) #[1] 192275
-nrow(charges_below) #[1] 199098
+nrow(charges_above) #[1] 194911
+nrow(charges_below) #[1] 196462
 # we have a comparable number of encounters above and below the cutoff dates.
 
 # Step 3h: create object that identifies encounter_ids that are above or below the cutoff
 charges_split$above_cutoff <- 0
 charges_split$above_cutoff[which(charges_split$discharge>charges_split$cutoff_date)] <- 1
 head(charges_split$above_cutoff)
-length(which(charges_split$above_cutoff==0)) #201650
-length(which(charges_split$above_cutoff==1)) #192275
+length(which(charges_split$above_cutoff==0)) #199014
+length(which(charges_split$above_cutoff==1)) #194911
 charges_split <- charges_split[,c(1:3,7:9)]
 save(charges_split,file="/project/msca/capstone3/charges_split.RData")
 
 # Step 3i: calculate year2 charges, and while we're at it, why not calculate y1 charges as well
 charges_y2 <- ddply(charges_above, "patient_id",summarise, charges=sum(as.numeric(Charges),na.rm=T))
 charges_y1 <- ddply(charges_below, "patient_id",summarise, charges=sum(as.numeric(Charges),na.rm=T))
-nrow(charges_y2)#46901
-nrow(charges_y1)#48426
+nrow(charges_y2)#49537
+nrow(charges_y1)#45790
 length(unique(charges_all$patient_id))#56809
 # note that the number of rows in this charges data set is equal to the number of unique patient_ids in those data sets
 # note, more importantly, that neither of the number of rows in this data set is equal to the total number of patient ids in charges_all
@@ -461,9 +462,10 @@ save(diag2, file="/project/msca/capstone3/diag2.RData")
 patient_matrix2 <- merge(patient_matrix,diag2)
 save(patient_matrix2,file="/project/msca/capstone3/patient_matrix2.RData")
 
+#Step 6: 
 # Step 6:
 library(plyr)
-library(sqldf)
+#library(sqldf)
 load("/project/msca/capstone3/medsIn2.RData")
 load("/project/msca/capstone3/patient_matrix2.RData")
 load("/project/msca/capstone3/all_tables_appended.RData")
@@ -477,20 +479,24 @@ joinmeds<-rbind(medsOut, medsIn2)
 joinmeds<-unique(joinmeds[,1:3])
 nrow(joinmeds)
 Medcount<-count(joinmeds[1:920582,],vars="encounter_id")
-join_stringmedcount<-"select charges_split.*, Medcount.freq from charges_split left join Medcount on charges_split.encounter_id=Medcount.encounter_id"
-charges_all_join_Medcount<-sqldf(join_stringmedcount, stringsAsFactors=FALSE)
-head(charges_all_join_Medcount)
-tail(charges_all_join_Medcount)
+charges_all_join_Medcount <- merge(charges_split,Medcount,by="encounter_id")
+nacols(charges_all_join_Medcount)
+#join_stringmedcount<-"select charges_split.*, Medcount.freq from charges_split left join Medcount on charges_split.encounter_id=Medcount.encounter_id"
+#charges_all_join_Medcount<-sqldf(join_stringmedcount, stringsAsFactors=FALSE)
+#head(charges_all_join_Medcount)
+#tail(charges_all_join_Medcount)
 charges_all_join_Medcount<-subset(charges_all_join_Medcount, above_cutoff=='0') #remove year 2 data, use only year 1
-charges_all_join_Medcount$freq[is.na(charges_all_join_Medcount$freq)] <- 0 #replace na's with 0
+nacols(charges_all_join_Medcount)
+#charges_all_join_Medcount$freq[is.na(charges_all_join_Medcount$freq)] <- 0 #replace na's with 0
 medfreq<-ddply(charges_all_join_Medcount,.(patient_id),summarise,medfreq=sum(freq))
 head(medfreq)
 length(unique(medfreq$patient_id))
 
-patient_matrixjoin<-"select patient_matrix2.*, medfreq.medfreq from patient_matrix2 left join medfreq on patient_matrix2.patient_id=medfreq.patient_id"
-patient_matrix<-sqldf(patient_matrixjoin, stringsAsFactors=FALSE)
+#patient_matrixjoin<-"select patient_matrix2.*, medfreq.medfreq from patient_matrix2 left join medfreq on patient_matrix2.patient_id=medfreq.patient_id"
+#patient_matrix<-sqldf(patient_matrixjoin, stringsAsFactors=FALSE)
 
-#patient_matrix<-merge(patient_matrix2,medfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+patient_matrix<-merge(patient_matrix2,medfreq,by.x=c("patient_id"),by.y=c("patient_id"), all.x=TRUE)
+patient_matrix$medfreq[which(is.na(patient_matrix$medfreq))] <- 0# replace patient_matrix$medfreq NA values with 0
 col_idx<-grep("medfreq",names(patient_matrix))
 patient_matrix<-patient_matrix[,c(col_idx,(1:ncol(patient_matrix))[-col_idx])]
 
@@ -498,19 +504,22 @@ patient_matrix<-patient_matrix[,c(col_idx,(1:ncol(patient_matrix))[-col_idx])]
 labcount<-count(labs[1:10153073,],vars="encounter_id")
 head(labcount)
 tail(labcount)
-join_stringlabcount<-"select charges_split.*, labcount.freq from charges_split left join labcount on charges_split.encounter_id=labcount.encounter_id"
-charges_all_join_labcount<-sqldf(join_stringlabcount,stringsAsFactors=FALSE)
+#join_stringlabcount<-"select charges_split.*, labcount.freq from charges_split left join labcount on charges_split.encounter_id=labcount.encounter_id"
+#charges_all_join_labcount<-sqldf(join_stringlabcount,stringsAsFactors=FALSE)
+charges_all_join_labcount <- merge(charges_split,labcount,by="encounter_id")
 head(charges_all_join_labcount)
 tail(charges_all_join_labcount)
 charges_all_join_labcount<-subset(charges_all_join_labcount, above_cutoff=='0') #remove year 2 data, use only year 1
-charges_all_join_labcount$freq[is.na(charges_all_join_labcount$freq)] <- 0 #replace na's with 0
+#charges_all_join_labcount$freq[is.na(charges_all_join_labcount$freq)] <- 0 #replace na's with 0
 
 labfreq<-ddply(charges_all_join_labcount,.(patient_id),summarise,labfreq=sum(freq))
 head(labfreq)
 length(unique(labfreq$patient_id))
-patient_matrixjoin1<-"select patient_matrix.*, labfreq.labfreq from patient_matrix left join labfreq on patient_matrix.patient_id=labfreq.patient_id"
-patient_matrix<-sqldf(patient_matrixjoin1, stringsAsFactors=FALSE)
-#patient_matrix<-merge(patient_matrix,labfreq,by.x=c("patient_id"),by.y=c("patient_id"), byall.x=TRUE)
+#patient_matrixjoin1<-"select patient_matrix.*, labfreq.labfreq from patient_matrix left join labfreq on patient_matrix.patient_id=labfreq.patient_id"
+#patient_matrix<-sqldf(patient_matrixjoin1, stringsAsFactors=FALSE)
+patient_matrix<-merge(patient_matrix,labfreq,by="patient_id", all.x=TRUE)
+nacols(patient_matrix)
+patient_matrix$labfreq[which(is.na(patient_matrix$labfreq))] <- 0# replace patient_matrix$labfreq NA values with 0
 col1_idx<-grep("labfreq",names(patient_matrix))
 patient_matrix<-patient_matrix[,c(col1_idx,(1:ncol(patient_matrix))[-col1_idx])]
 col2_idx<-grep("patient_id",names(patient_matrix))
@@ -554,5 +563,6 @@ patient_matrix$medfreq[which(is.na(patient_matrix$medfreq))] <- 0
 
 # remove dead patients & dod_off column
 patient_matrix <- patient_matrix[which(patient_matrix$dod_off==""),-which(colnames(patient_matrix)=="dod_off")]
+patient_matrix <- patient_matrix[-which(patient_matrix$mode_discharge_dispo=="Expired"),]
 
 save(patient_matrix, file="/project/msca/capstone3/patient_matrix2revise.RData")
