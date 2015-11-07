@@ -1,8 +1,8 @@
-
+# Classify patients as 0 or nonzero cost
 
 #Step 1: label the patients for classification 0 or 1 
 
-load("/project/msca/capstone3/datasplits.RData")
+load("/project/msca/capstone3/patient_matrix2revise.RData")
 patient_matrix$label <- 0
 patient_matrix$label[which(patient_matrix$y2_charges>0)]<-1
 patient_matrix$label <- as.factor(patient_matrix$label)
@@ -21,18 +21,17 @@ validation.set<-totalvalidation.set[-invalidation,]
 save(training.set, testing.set, validation.set,file="/project/msca/capstone3/datasplits2.RData")
 
 
-#Build SVM
+# Step 3: Build Classification Models
 
-
-svmmulti<-ksvm(highlow~y1_charges, data=training.set, type="C-svc", kernel="rbfdot")
-svmmulti
-
-#Step 3: Build a classification model
-#1. rpart tree
+# Step 3a: rpart tree
 library(caret)
 ptm <- proc.time()
 tree_control <- trainControl(method="cv",number=5,returnResamp="all")
 tree01rpart2 <- train(training.set[-c(1,10,ncol(training.set))],training.set$label,method="rpart2",maxdepth=8,trControl=tree_control)#15-min runtime
 proc.time() - ptm
 save(tree01rpart2,file="/project/msca/capstone3/rpart2class.RData") 
+
+# Step 3b: SVM
+svmmulti<-ksvm(highlow~y1_charges, data=training.set, type="C-svc", kernel="rbfdot")
+svmmulti
 
