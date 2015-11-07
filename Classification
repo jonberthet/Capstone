@@ -1,19 +1,38 @@
 load("/project/msca/capstone3/datasplits.RData")
 set.seed(10)
 load("/project/msca/capstone3/patient_matrix2revise.RData")
+#create new variable with cut above and below 0
+totalcharges<-sum(patient_matrix$y2_charges)
+low<-subset(patient_matrix, y2_charges<1)
+totalchargeslow<-sum(patient_matrix$y2_charges)
+high<-subset(patient_matrix, y2_charges>=1)
+totalchargeshigh<-sum(high$y2_charges)
+high$highlow<-1
+join_stringhigh<-"select patient_matrix.*, high.highlow from patient_matrix left join high on patient_matrix.patient_id=high.patient_id"
+patient_matrix1<-sqldf(join_stringhigh, stringsAsFactors=FALSE)
+patient_matrix<-patient_matrix1
+col_idx6<-grep("high",names(patient_matrix))
+patient_matrix<-patient_matrix[,c(col_idx6,(1:ncol(patient_matrix))[-col_idx6])]
+patient_matrix[is.na(patient_matrix)]<-0
+
+#create train, test, validate sets
+
+set.seed(10)
 train <- sample(1:nrow(patient_matrix),floor(0.6*nrow(patient_matrix)))
 training.set<-patient_matrix[train,]
 totalvalidation.set<-patient_matrix[-train,]
+
 invalidation<-sample(1:nrow(totalvalidation.set),floor(0.5*nrow(totalvalidation.set)))
 testing.set<-totalvalidation.set[invalidation,]
 validation.set<-totalvalidation.set[-invalidation,]
 save(training.set, testing.set, validation.set,file="/project/msca/capstone3/datasplits2.RData")
 
-#Step 2: label the patients for classification 0 or 1 
-load("/project/msca/capstone3/datasplits.RData")
-training.set$label <- 0
-training.set$label[which(training.set$y2_charges>0)]<-1
-training.set$label <- as.factor(training.set$label)
+
+#Build SVM
+
+
+svmmulti<-ksvm(highlow~y1_charges, data=training.set, type="C-svc", kernel="rbfdot")
+svmmulti
 
 #Step 3: Build a classification model
 #1. rpart tree
