@@ -567,6 +567,8 @@ patient_matrix$mode_discharge_dispo <- as.factor(patient_matrix$mode_discharge_d
 
 # remove dead patients & dod_off column
 patient_matrix <- patient_matrix[which(patient_matrix$dod_off==""),-which(colnames(patient_matrix)=="dod_off")]
+patient_matrix <- patient_matrix[-which(patient_matrix$mode_discharge_dispo=="Expired"),]
+
 
 save(patient_matrix, file="/project/msca/capstone3/patient_matrix2revise.RData")
 nacols(patient_matrix)
