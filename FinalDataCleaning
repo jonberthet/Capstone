@@ -566,3 +566,8 @@ patient_matrix <- patient_matrix[which(patient_matrix$dod_off==""),-which(colnam
 patient_matrix <- patient_matrix[-which(patient_matrix$mode_discharge_dispo=="Expired"),]
 
 save(patient_matrix, file="/project/msca/capstone3/patient_matrix2revise.RData")
+
+# remove patients with only 1 encounter total
+patient_matrix <- patient_matrix[-which(patient_matrix$y2_charges==0 & patient_matrix$encountfreq==1),]
+
+save(patient_matrix, file="/project/msca/capstone3/patient_matrix_final.RData")
