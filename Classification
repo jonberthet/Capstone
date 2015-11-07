@@ -1,0 +1,17 @@
+load("/project/msca/capstone3/datasplits.RData")
+set.seed(10)
+load("/project/msca/capstone3/patient_matrix2revise.RData")
+train <- sample(1:nrow(patient_matrix),floor(0.6*nrow(patient_matrix)))
+training.set<-patient_matrix[train,]
+totalvalidation.set<-patient_matrix[-train,]
+invalidation<-sample(1:nrow(totalvalidation.set),floor(0.5*nrow(totalvalidation.set)))
+testing.set<-totalvalidation.set[invalidation,]
+validation.set<-totalvalidation.set[-invalidation,]
+save(training.set, testing.set, validation.set,file="/project/msca/capstone3/datasplits2.RData")
+
+#Step 2: label the patients for classification 0 or 1 
+load("/project/msca/capstone3/datasplits.RData")
+training.set$label <- 0
+training.set$label[which(training.set$y2_charges>0)]<-1
+training.set$label <- as.factor(training.set$label)
+
