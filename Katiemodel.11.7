@@ -30,6 +30,8 @@ Hightrain<-subset(training.set1, predclass=='2')
 Lowtrain<-subset(training.set1, predclass=='1')
 save(predclass, Hightrain, Lowtrain,  file="/project/msca/capstone3/katiepredclass.RData")
 
+
+#Grace's 
 #Lowtrain first
 hist(training.set$y2_charges)
 
@@ -65,3 +67,77 @@ lmRMSE<-sqrt(mean((pred- validation.set$y2_charges)^2))
 lmRMSE #58167.2
 lmMAE<-mean(abs(pred-validation.set$y2_charges))
 lmMAE #21732.51
+
+
+#Hightrain next
+#hist(training.set$y2_charges)
+
+Hightrainlm<-Hightrain
+Hightrainlm$patient_id<-NULL
+Hightrainlm$predclass<-NULL
+
+x_trainH<-model.matrix(y2_charges~.,Hightrainlm)
+y_trainH <- Hightrainlm$y2_charges
+zerovariance<-nearZeroVar(x_trainH, saveMetrics=TRUE)
+nrow(zerovariance[zerovariance[,"zeroVar"]=="TRUE",]) # 3913variables removed
+x_trainH<-x_trainH[,zerovariance$zeroVar==FALSE]
+ncol(x_trainH)
+dfCorr<-cor(x_trainH) #build correlation matrix
+highCorr<-findCorrelation(dfCorr, 0.7) #find all pairwise correlations greater than 0.7
+x_trainH<-x_trainH[,-highCorr] #remove highly correlated predictors from training set
+
+#There were a total of  3881 variables removed that were highly correlated.   402 variables remain.
+
+
+
+#Build benchmark linear regression from reduced data and look at residuals to determine if further transformations are needed
+fulllmH<-lm(y_trainH~x_trainH)
+summary(fulllmH)#Multiple R-squared:   0.9708
+fulllm.MSE.High <- mean((fulllmH$fitted.values - y_trainH)^2)
+fulllm.MSE.High
+plot(fulllmH)
+
+#Predict on validate set
+
+predH<-predict(fulllmH, newdata=validation.set)
+lmRMSE.High<-sqrt(mean((predH- validation.set$y2_charges)^2))
+lmRMSE.High #381149.2
+lmMAE.High<-mean(abs(predH-validation.set$y2_charges))
+lmMAE.High #319021.4
+
+#Grace's Hightrain next
+#hist(training.set$y2_charges)
+
+HightrainlmG<-Hightrain
+HightrainlmG$patient_id<-NULL
+HightrainlmG$predclass<-NULL
+
+x_trainHG<-model.matrix(y2_charges~.,HightrainlmG)
+y_trainHG <- HightrainlmG$y2_charges
+zerovariance<-nearZeroVar(x_trainHG, saveMetrics=TRUE)
+nrow(zerovariance[zerovariance[,"zeroVar"]=="TRUE",]) # variables removed
+x_trainHG<-x_trainHG[,zerovariance$zeroVar==FALSE]
+ncol(x_trainHG)
+dfCorr<-cor(x_trainHG) #build correlation matrix
+highCorr<-findCorrelation(dfCorr, 0.7) #find all pairwise correlations greater than 0.7
+x_trainHG<-x_trainHG[,-highCorr] #remove highly correlated predictors from training set
+
+#There were a total of  G variables removed that were highly correlated.    variables remain.
+
+
+
+#Build benchmark linear regression from reduced data and look at residuals to determine if further transformations are needed
+fulllmHG<-lm(y_trainHG~x_trainHG)
+summary(fulllmHG)#Multiple R-squared:   0.9708
+fulllm.MSE.HighG <- mean((fulllmHG$fitted.values - y_trainHG)^2)
+fulllm.MSE.HighG
+plot(fulllmHG)
+
+#Predict on validate set
+
+predHG<-predict(fulllmHG, newdata=validation.set)
+lmRMSE.HighG<-sqrt(mean((predHG- validation.set$y2_charges)^2))
+lmRMSE.HighG #
+lmMAE.HighG<-mean(abs(predHG-validation.set$y2_charges))
+lmMAE.HighG #
+
