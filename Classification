@@ -24,14 +24,20 @@ save(training.set, testing.set, validation.set,file="/project/msca/capstone3/dat
 # Step 3: Build Classification Models
 
 # Step 3a: rpart tree
+load("/project/msca/capstone3/datasplits2.RData")
 library(caret)
 ptm <- proc.time()
 tree_control <- trainControl(method="cv",number=5,returnResamp="all")
-tree01rpart2 <- train(training.set[-c(1,10,ncol(training.set))],training.set$label,method="rpart2",maxdepth=8,trControl=tree_control)#12.6-min runtime
+tree01rpart2 <- train(training.set[-c(1,10,ncol(training.set))],training.set$label,method="rpart2",maxdepth=8,trControl=tree_control)#10-min runtime
 proc.time() - ptm
-#save(tree01rpart2,file="/project/msca/capstone3/rpart2class.RData")
-load(save(tree01rpart2,file="/project/msca/capstone3/rpart2class.RData")
+save(tree01rpart2,file="/project/msca/capstone3/rpart2class.RData")
+load("/project/msca/capstone3/rpart2class.RData")
 tree.train.pred <- predict(tree01rpart2)
+tree.predclass <- rep(0,length(tree.train.pred))
+tree.predclass[which(tree.train.pred=="1")] <- 2
+tree.predclass[which(tree.predclass=="0")] <- 1
+
+save(tree.predclass,file="/project/msca/capstone3/tree_predclass.RData")
 
 # Step 3b: SVM
 #Build SVM
