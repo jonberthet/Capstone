@@ -4,17 +4,34 @@ library(party)
 
 #machine learning models
 load("/project/msca/capstone3/katiepredclass.RData")
+load("/project/msca/capstone3/tree_predclass.RData")
+training.set2<-cbind(tree.predclass, training.set)
+HightrainG<-subset(training.set2, tree.predclass=='2')
+LowtrainG<-subset(training.set2, tree.predclass=='1')
+
+Lowtrain$patient_id<-NULL
+Hightrain$patient_id<-NULL
+
+Lowtrain$label<-NULL
+Hightrain$label<-NULL
+
+Lowtrain$predclass<-NULL
+Hightrain$predclass<-NULL
+formula<-y2_charges~.
+
+fit.ctree.partyHigh<-ctree(formula, data=Hightrain, controls=ctree_control(mincriterion=0.95,savesplitstats=FALSE))
+fit.ctree.partyHigh
+
+fit.ctree.partyLow<-ctree(formula, data=Lowtrain, controls=ctree_control(mincriterion=0.95,savesplitstats=FALSE))
+fit.ctree.partyLow
 
 #Lowtrain first
 x_trainL<-model.matrix(y2_charges~.,Lowtrain)
 y_trainL <- Lowtrain$y2_charges
 
-#regression tree
+x_trainH<-model.matrix(y2_charges~.,Hightrain)
+y_trainH <- Hightrain$y2_charges
 
-formula<-y2_charges~.
-
-fit.ctree.partyL<-ctree(formula, data=Lowtrain, controls=ctree_control(mincriterion=0.95,savesplitstats=FALSE))
-fit.ctree.partyL
 
 #boosted tree
 
@@ -26,6 +43,8 @@ set.seed(10)
 gbmFit<-train(x_trainL, y_trainL, method="gbm", trControl=control, tuneGrid=gbmGrid, metric="RMSE", verbose=FALSE)
 gbmFit
 
+gbmFitH<-train(x_trainH, y_trainH, method="gbm", trControl=control, tuneGrid=gbmGrid, metric="RMSE", verbose=FALSE)
+gbmFitH
 
 #Show model comparisons
 
