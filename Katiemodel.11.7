@@ -178,9 +178,9 @@ plot(fulllmLG)
 
 predLG<-predict(fulllmLG, newdata=validation.set)
 lmRMSE.LowG<-sqrt(mean((predLG- validation.set$y2_charges)^2))
-lmRMSE.LowG #
+lmRMSE.LowG #58063.77
 lmMAE.LowG<-mean(abs(predLG-validation.set$y2_charges))
-lmMAE.LowG #
+lmMAE.LowG #21886.31
 
 
 #Comparisons
