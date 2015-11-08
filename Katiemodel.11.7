@@ -1,77 +1,5 @@
-library(plyr)
-library(caret)
-library(e1071)
-library(kernlab)
-library(sqldf)
-library(tree)
-load("/project/msca/capstone3/patient_matrix2revise.RData")
-load("/project/msca/capstone3/Octoberfinalmodels.RData")
-#Exploratory analysis of charges
-nrow(patient_matrix)#44011 observations
-hist(patient_matrix$y2_charges)
-zero<-subset(patient_matrix, y2_charges==0) #10008 observations; 22.7% of patients
-summary(zero$race)/sum(summary(zero$race))#Percentages of different races within subset
-summary(zero$marital_status)/sum(summary(zero$marital_status))
-summary(zero$sex)/sum(summary(zero$sex))
-summary(zero$ethnicity)/sum(summary(zero$ethnicity))
-low<-subset(patient_matrix, y2_charges<1000 & y2_charges>0)#6347 observations; 14.4% of patients
-hist(low$y2_charges)
-summary(low$race)/sum(summary(low$race))#Percentages of different races within subset
-summary(low$marital_status)/sum(summary(low$marital_status))
-summary(low$sex)/sum(summary(low$sex))
-summary(low$ethnicity)/sum(summary(low$ethnicity))
-low2<-subset(patient_matrix, y2_charges<10000 & y2_charges>1000)#16120; 36.6% of patients
-hist(low2$y2_charges)
-summary(low2$race)/sum(summary(low2$race))#Percentages of different races within subset
-summary(low2$marital_status)/sum(summary(low2$marital_status))
-summary(low2$sex)/sum(summary(low2$sex))
-summary(low2$ethnicity)/sum(summary(low2$ethnicity))
-med<-subset(patient_matrix, y2_charges<500000 & y2_charges>10000)#11470; 26.06% of patients
-hist(med$y2_charges)
-summary(med$race)/sum(summary(med$race))#Percentages of different races within subset
-summary(med$marital_status)/sum(summary(med$marital_status))
-summary(med$sex)/sum(summary(med$sex))
-summary(med$ethnicity)/sum(summary(med$ethnicity))
-high<-subset(patient_matrix, y2_charges>500000)#65 obs; 1.47% of patients
-hist(high$y2_charges)
-high<-high[,2:15]
-summary(high$race)/sum(summary(high$race))#Percentages of different races within subset
-summary(high$marital_status)/sum(summary(high$marital_status))
-summary(high$sex)/sum(summary(high$sex))
-summary(high$ethnicity)/sum(summary(high$ethnicity))
-racesummary<-ddply(high, .(race), summarise, meanlab=mean(labfreq), meanmed=mean(medfreq), meansumlos=mean(sumlos), meanencount=mean(encountfreq), meanhosp=mean(hospitalizations), meanER=mean(num_ER_visits), meany1charges=mean(y1_charges), meanage=mean(age_y2))
-racesummary
-maritalsummary<-ddply(high, .(marital_status), summarise, meanlab=mean(labfreq), meanmed=mean(medfreq), meansumlos=mean(sumlos), meanencount=mean(encountfreq), meanhosp=mean(hospitalizations), meanER=mean(num_ER_visits), meany1charges=mean(y1_charges), meanage=mean(age_y2))
-maritalsummary
-sexsummary<-ddply(high, .(sex), summarise, meanlab=mean(labfreq), meanmed=mean(medfreq), meansumlos=mean(sumlos), meanencount=mean(encountfreq), meanhosp=mean(hospitalizations), meanER=mean(num_ER_visits), meany1charges=mean(y1_charges), meanage=mean(age_y2))
-sexsummary
-
-
-
-#start script
-
-
-#Step 1: label the patients for classification 0 or 1 
-
-load("/project/msca/capstone3/datasplits.RData")
-patient_matrix$label <- 0
-patient_matrix$label[which(patient_matrix$y2_charges>157245)]<-1
-patient_matrix$label <- as.factor(patient_matrix$label)
-
-
-#Step 2: create train, test, validate sets
-
-set.seed(10)
-train <- sample(1:nrow(patient_matrix),floor(0.6*nrow(patient_matrix)))
-training.set<-patient_matrix[train,]
-totalvalidation.set<-patient_matrix[-train,]
-set.seed(10)
-invalidation<-sample(1:nrow(totalvalidation.set),floor(0.5*nrow(totalvalidation.set)))
-testing.set<-totalvalidation.set[invalidation,]
-validation.set<-totalvalidation.set[-invalidation,]
-save(training.set, testing.set, validation.set,file="/project/msca/capstone3/datasplits2.RData")
-
 #Build SVM
+load("/project/msca/capstone3/datasplits2.RData")
 trainingsetsvm<-training.set
 validationsetsvm<-validation.set
 trainingsetsvm$patient_id<-NULL
@@ -94,7 +22,7 @@ predclass<-predict(svmmulti)
 training.set1<-cbind(predclass, training.set)
 Hightrain<-subset(training.set1, predclass=='2')
 Lowtrain<-subset(training.set1, predclass=='1')
-
+save(predclass, Hightrain, Lowtrain,  file="/project/msca/capstone3/katiepredclass.RData")
 #Build linear regression
 
 
@@ -104,22 +32,40 @@ hist(training.set$y2_charges)
 Lowtrainlm<-Lowtrain
 Lowtrainlm$patient_id<-NULL
 Lowtrainlm$predclass<-NULL
-
+#4283 predictors present to start
 zerovariance<-nearZeroVar(Lowtrainlm, saveMetrics=TRUE)
-nrow(zerovariance[zerovariance[,"zeroVar"]=="TRUE",])
+nrow(zerovariance[zerovariance[,"zeroVar"]=="TRUE",]) #598 variables removed
 Lowtrainlm<-Lowtrainlm[,zerovariance$zeroVar==FALSE]
-
+#Now there's 3685 predictors
+x_train<-model.matrix(y2_charges~.,Lowtrainlm)
+y_train <- Lowtrainlm$y2_charges
 ncol(Lowtrainlm)
-dfCorr<-cor(Lowtrainlm) #build correlation matrix
+dfCorr<-cor(x_train) #build correlation matrix
 highCorr<-findCorrelation(dfCorr, 0.7) #find all pairwise correlations greater than 0.7
-traindf<-Lowtrainlm[,-highCorr] #remove highly correlated predictors from training set
+traindf<-x_train[,-highCorr] #remove highly correlated predictors from training set
+ytrain<-y_train[,-highCorr]
 validatedf<-validation.set
 ncol(traindf)
 ncol(validationdf)
 
+x_train<-model.matrix(y2_charges~.,Lowtrainlm)
+y_train <- Lowtrainlm$y2_charges
 
-x_train<-model.matrix(y2_charges~.,traindf)
-y_train <- traindf$y2_charges
+#Build benchmark linear regression from reduced data and look at residuals to determine if further transformations are needed
+fulllm<-lm(y_train~traindf)
+summary(fulllm)
+fulllm.MSE <- mean((fulllm$fitted.values - ytrain)^2)
+fulllm.MSE
+plot(fulllm)
+
+#Predict on test set
+testlm<-lm(y2_charges~., data=testdf)
+pred<-predict(fulllm, newdata=testdf)
+lmRMSE<-sqrt(mean((pred- testdf$y2_charges)^2))
+lmRMSE 
+lmMAE<-mean(abs(pred- testdf$y2_charges))
+lmMAE
+
 
 
 
@@ -162,5 +108,6 @@ training.set1<-training.set1[,c(col_idx,(1:ncol(training.set1))[-col_idx])]
 #c3 <- training.set[training.set$chargesClustered == 3,]
 
 #save(training.set, testing.set, validation.set, c1, c2, c3, file="/project/msca/capstone3/datasplits.RData")
+
 
 
