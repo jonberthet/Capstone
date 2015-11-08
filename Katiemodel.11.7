@@ -5,7 +5,7 @@ library(kernlab)
 library(sqldf)
 library(tree)
 load("/project/msca/capstone3/patient_matrix_final.RData")
-load("/project/msca/capstone3/Octoberfinalmodels.RData")
+
 #Exploratory analysis of charges
 nrow(patient_matrix)#44011 observations
 hist(patient_matrix$y2_charges)
@@ -47,30 +47,6 @@ sexsummary<-ddply(high, .(sex), summarise, meanlab=mean(labfreq), meanmed=mean(m
 sexsummary
 
 
-
-#start script
-
-
-#Step 1: label the patients for classification 0 or 1 
-
-load("/project/msca/capstone3/datasplits.RData")
-patient_matrix$label <- 0
-patient_matrix$label[which(patient_matrix$y2_charges>157245)]<-1
-patient_matrix$label <- as.factor(patient_matrix$label)
-
-
-#Step 2: create train, test, validate sets
-
-set.seed(10)
-train <- sample(1:nrow(patient_matrix),floor(0.6*nrow(patient_matrix)))
-training.set<-patient_matrix[train,]
-totalvalidation.set<-patient_matrix[-train,]
-set.seed(10)
-invalidation<-sample(1:nrow(totalvalidation.set),floor(0.5*nrow(totalvalidation.set)))
-testing.set<-totalvalidation.set[invalidation,]
-validation.set<-totalvalidation.set[-invalidation,]
-save(training.set, testing.set, validation.set,file="/project/msca/capstone3/datasplits2.RData")
-
 #Build SVM
 load("/project/msca/capstone3/datasplits2.RData")
 trainingsetsvm<-training.set
@@ -96,8 +72,6 @@ training.set1<-cbind(predclass, training.set)
 Hightrain<-subset(training.set1, predclass=='2')
 Lowtrain<-subset(training.set1, predclass=='1')
 save(predclass, Hightrain, Lowtrain,  file="/project/msca/capstone3/katiepredclass.RData")
-#Build linear regression
-
 
 #Lowtrain first
 hist(training.set$y2_charges)
@@ -109,21 +83,19 @@ Lowtrainlm$predclass<-NULL
 x_train<-model.matrix(y2_charges~.,Lowtrainlm)
 y_train <- Lowtrainlm$y2_charges
 zerovariance<-nearZeroVar(x_train, saveMetrics=TRUE)
-nrow(zerovariance[zerovariance[,"zeroVar"]=="TRUE",]) #598 variables removed
+nrow(zerovariance[zerovariance[,"zeroVar"]=="TRUE",]) #697 variables removed
 x_train<-x_train[,zerovariance$zeroVar==FALSE]
-ncol(Lowtrainlm)
-dfCorr<-cor(Lowtrainlm) #build correlation matrix
+ncol(x_train)
+dfCorr<-cor(x_train) #build correlation matrix
 highCorr<-findCorrelation(dfCorr, 0.7) #find all pairwise correlations greater than 0.7
-Lowtrainlm<-Lowtrainlm[,-highCorr] #remove highly correlated predictors from training set
-ytrain<-y_train[,-highCorr]
+x_train<-x_train[,-highCorr] #remove highly correlated predictors from training set
 validatedf<-validation.set
-ncol(traindf)
-ncol(validationdf)
+
 
 
 
 #Build benchmark linear regression from reduced data and look at residuals to determine if further transformations are needed
-fulllm<-lm(y_train~traindf)
+fulllm<-lm(y_train~x_train)
 summary(fulllm)
 fulllm.MSE <- mean((fulllm$fitted.values - ytrain)^2)
 fulllm.MSE
@@ -136,5 +108,6 @@ lmRMSE<-sqrt(mean((pred- testdf$y2_charges)^2))
 lmRMSE 
 lmMAE<-mean(abs(pred- testdf$y2_charges))
 lmMAE
+
 
 
