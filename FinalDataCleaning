@@ -581,8 +581,8 @@ load("/project/msca/capstone3/patient_matrix_final.RData")
 
 
 set.seed(10)
-km.charges3 <- kmeans(patient_matrix$y2_charges, 3)
-km.charges3$size[1] #[1]   597 33789
+km.charges <- kmeans(patient_matrix$y2_charges,2)
+km.charges$size[1] #[1]   597 33789
 km.charges$centers[1]
 head(km.charges$cluster)
 plot(patient_matrix$y2_charges,km.charges$cluster)
@@ -596,7 +596,6 @@ cutoff
 
 #Step 1: label the patients for classification 0 or 1 
 
-load("/project/msca/capstone3/patient_matrix2revise.RData")
 patient_matrix$label <- 0
 patient_matrix$label[which(patient_matrix$y2_charges>cutoff)]<-1
 patient_matrix$label <- as.factor(patient_matrix$label)
@@ -604,10 +603,11 @@ patient_matrix$label <- as.factor(patient_matrix$label)
 #Step 2: create train, test, validate sets
 set.seed(10)
 train <- sample(1:nrow(patient_matrix),floor(0.6*nrow(patient_matrix)))
-training.set <- patient_matrix_low[train,]
+training.set <- patient_matrix[train,]
 totalvalidation.set<-patient_matrix[-train,]
 set.seed(10)
 invalidation<-sample(1:nrow(totalvalidation.set),floor(0.5*nrow(totalvalidation.set)))
 testing.set<-totalvalidation.set[invalidation,]
 validation.set<-totalvalidation.set[-invalidation,]
 save(training.set, testing.set, validation.set,file="/project/msca/capstone3/datasplits2.RData")
+
