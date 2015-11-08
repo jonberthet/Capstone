@@ -1,0 +1,51 @@
+library(e1071)
+library(kernlab)
+library(party)
+
+#machine learning models
+load("/project/msca/capstone3/katiepredclass.RData")
+
+#Lowtrain first
+x_trainL<-model.matrix(y2_charges~.,Lowtrain)
+y_trainL <- Lowtrain$y2_charges
+
+#regression tree
+
+formula<-y2_charges~.
+
+fit.ctree.partyL<-ctree(formula, data=Lowtrain, controls=ctree_control(mincriterion=0.95,savesplitstats=FALSE))
+fit.ctree.partyL
+
+#boosted tree
+
+getModelInfo("gbm", FALSE)[[1]]$grid
+modelLookup("gbm")
+control<-trainControl(method="repeatedCV", number=10, repeats=1, verboseIter=FALSE, returnResamp="all", classProbs=TRUE,)
+gbmGrid<-expand.grid(interaction.depth=seq(1,4), n.trees=(1:4)*50, shrinkage=.1, n.minobsinnode=10)
+set.seed(10)
+gbmFit<-train(x_trainL, y_trainL, method="gbm", trControl=control, tuneGrid=gbmGrid, metric="RMSE", verbose=FALSE)
+gbmFit
+
+
+#Show model comparisons
+
+#predict of new samples
+predValuesparty<-predict(fit.ctree.party, newdata=testing_set_tree)
+RMSE.test.party<-RMSE(obs=y1_test, pred=predValuesparty)
+RMSE.test.party
+partymae<-mean(abs(predValuesparty-y1_test))
+partymae
+
+
+predValuesGBM<-predict(gbmFit, testX=x1_test, testY=y1_test)
+RMSE.test.gbm<-RMSE(obs=y1_test, pred=predValuesGBM)
+RMSE.test.gbm
+gbmmae<-mean(abs(predValuesGBM-y1_test))
+gbmmae
+
+
+predValuestree<-predict(treefit, testX=x1_test, testY=y1_test)
+RMSE.test.tree<-RMSE(obs=y1_test, pred=predValuestree)
+RMSE.test.tree
+treemae<-mean(abs(predValuestree-y1_test))
+treemae
