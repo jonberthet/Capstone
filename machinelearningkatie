@@ -25,7 +25,7 @@ fit.ctree.partyHigh
 fit.ctree.partyLow<-ctree(formula, data=Lowtrain, controls=ctree_control(mincriterion=0.95,savesplitstats=FALSE))
 fit.ctree.partyLow
 
-#Lowtrain first
+#GBM
 x_trainL<-model.matrix(y2_charges~.,Lowtrain)
 y_trainL <- Lowtrain$y2_charges
 
@@ -40,16 +40,20 @@ modelLookup("gbm")
 control<-trainControl(method="repeatedCV", number=10, repeats=1, verboseIter=FALSE, returnResamp="all", classProbs=TRUE,)
 gbmGrid<-expand.grid(interaction.depth=seq(1,4), n.trees=(1:4)*50, shrinkage=.1, n.minobsinnode=10)
 set.seed(10)
+ptm<-proc.time()
 gbmFit<-train(x_trainL, y_trainL, method="gbm", trControl=control, tuneGrid=gbmGrid, metric="RMSE", verbose=FALSE)
+proc.time() - ptm
 gbmFit
 
+ptm<-proc.time()
 gbmFitH<-train(x_trainH, y_trainH, method="gbm", trControl=control, tuneGrid=gbmGrid, metric="RMSE", verbose=FALSE)
+proc.time() - ptm
 gbmFitH
 
 #Show model comparisons
 
 #predict of new samples
-predValuesparty<-predict(fit.ctree.party, newdata=testing_set_tree)
+predValuesparty<-predict(fit.ctree.partyHigh, newdata=validation.set)
 RMSE.test.party<-RMSE(obs=y1_test, pred=predValuesparty)
 RMSE.test.party
 partymae<-mean(abs(predValuesparty-y1_test))
