@@ -1,0 +1,91 @@
+trainingsetlm<-training.set
+trainingsetlm$patient_id<-NULL
+trainingsetlm$label<-NULL
+
+x_train<-model.matrix(y2_charges~.,trainingsetlm)
+y_train <- trainingsetlm$y2_charges
+zerovariance<-nearZeroVar(x_train, saveMetrics=TRUE)
+nrow(zerovariance[zerovariance[,"zeroVar"]=="TRUE",]) 
+x_train<-x_train[,zerovariance$zeroVar==FALSE]
+ncol(x_train)
+dfCorr<-cor(x_train) #build correlation matrix
+highCorr<-findCorrelation(dfCorr, 0.7) #find all pairwise correlations greater than 0.7
+x_train<-x_train[,-highCorr] #remove highly correlated predictors from training set
+
+#There were a total of 246 variables removed that were highly correlated.  3351 variables remain.
+validation.set$patient_id<-NULL
+validation.set$label<-NULL
+x_validate<-model.matrix(y2_charges~.,validation.set)
+y_validate <- validation.set$y2_charges
+zerovariance<-nearZeroVar(x_validate, saveMetrics=TRUE)
+nrow(zerovariance[zerovariance[,"zeroVar"]=="TRUE",])
+x_validate<-x_validate[,zerovariance$zeroVar==FALSE]
+x_validate<-x_validate[,-highCorr]
+
+#Build benchmark linear regression from reduced data and look at residuals to determine if further transformations are needed
+fulllm<-lm(y_train~x_train)
+summary(fulllm)
+fulllm.MSE <- mean((fulllm$fitted.values - y_train)^2)
+fulllm.MSE
+plot(fulllm)
+
+#Predict on validate set
+
+pred<-predict(fulllm, )
+lmRMSE<-sqrt(mean((pred-y_validate)^2))
+lmRMSE 
+lmMAE<-mean(abs(pred-y_validate))
+lmMAE 
+lmr<-summary(lm(pred~y_validate))$r.squared
+
+
+#transformed Y
+
+
+trainingsetlmtransformed<-training.set
+trainingsetlmtransformed$y2_charges<-log(trainingsetlmtransformed$y2_charges)
+trainingsetlmtransformed<-subset(trainingsetlmtransformed, y2_charges>0)#have to remove zeros
+trainingsetlmtransformed$patient_id<-NULL
+trainingsetlmtransformed$label<-NULL
+
+
+hist(trainingsetlmtransformed$y2_charges)
+x_train<-model.matrix(y2_charges~.,trainingsetlmtransformed)
+y_train <- trainingsetlmtransformed$y2_charges
+
+zerovariance<-nearZeroVar(x_train, saveMetrics=TRUE)
+nrow(zerovariance[zerovariance[,"zeroVar"]=="TRUE",]) # 697 variables removed
+x_train<-x_train[,zerovariance$zeroVar==FALSE]
+ncol(x_train)
+dfCorr<-cor(x_train) #build correlation matrix
+highCorr<-findCorrelation(dfCorr, 0.7) #find all pairwise correlations greater than 0.7
+x_train<-x_train[,-highCorr] #remove highly correlated predictors from training set
+
+
+#There were a total of 279 variables removed that were highly correlated.  3338 variables remain.
+
+
+
+#Build benchmark linear regression from reduced data and look at residuals to determine if further transformations are needed
+fulllmtransformed<-lm(y_train~x_train)
+summary(fulllmtransformed)
+
+plot(fulllmtransformed)
+
+#Predict on validate set
+validation.set$y2_charges<-log(validation.set$y2_charges)
+validation.set<-subset(validation.set, y2_charges>0)
+predt<-predict(fulllmtransformed, newdata=validation.set)
+lmRMSEt<-sqrt(mean((predt- validation.set$y2_charges)^2))
+lmRMSEt 
+exp(1.872924)
+lmMAEt<-mean(abs(predt-validation.set$y2_charges))
+lmMAEt 
+exp(1.496103)
+
+lmMAEt <- mean((exp(predt)-validation.set$y2_charges)^2)
+lmRMSEt<- sqrt(mean((exp(predt)-validation.set$y2_charges)^2))
+lmMAEt <- mean(abs(exp(predt)-validation.set$y2_charges))
+lmMAEt 
+lmRMSEt 
+lmMAEt 
