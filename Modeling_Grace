@@ -1,8 +1,10 @@
+#FINAL_models_Nov23
+
 # final models
 # Model list:
-# 1. lasso - cv - report variables chosen
+# 1. lasso - cv
 # 2. ridge - cv
-# 3. tree - cv/prune
+# 3. tree - cv
 # 4. ranfor 
 
 load("/project/msca/capstone3/patient_matrix_final.RData")
@@ -60,292 +62,149 @@ r2.lasso <- summary(lm(lasso.pred~y_val))$r.squared
 r2.lasso
 
 
-# linear model
-# ptm5 <- proc.time()
-# lm.log <- lm(log(y2_charges+1)~.,training.set[,-1])
-# proc.time() - ptm5
-# ptm6 <- proc.time()
-# lm.mod <- lm(y2_charges~.,training.set[,-1])
-# proc.time() - ptm6
-# lm.pred <- predict(lm.mod,newx=x_val)
-# lm.mse <- mean((lm.pred-y_val)^2)
-# lm.rmse <- sqrt(mean((lm.pred-y_val)^2))
-# lm.mae <- mean(abs(lm.pred-y_val))
-# plot(lm.pred,y_val,main="Linear Model Predicted Values v. True Values")
-# abline(0,1)
+# investigate the lasso coefficients that were NOT turned to 0.
+lasso_coeffs <- predict(lasso.mod,s=cv.lasso$lambda.min,type="coefficients")
+length(which(lasso_coeffs!=0)) #26
+#dimnames(lasso_coeffs)[[1]][which(lasso_coeffs!=0)]
+# investigate the ridge coefficients that were NOT turned to 0.
+ridge_coeffs <- predict(ridge.mod,s=cv.ridge$lambda.min,type="coefficients")
+#dimnames(ridge_coeffs)[[1]][which(ridge_coeffs!=0)] #only 2 predictors included!
+length(dimnames(ridge_coeffs)[[1]][which(ridge_coeffs!=0)])
+length(dimnames(ridge_coeffs)[[1]])
+
+# regression tree
+ptm7 <- proc.time()
+library(tree)
+regression.tree <- tree(y2_charges~.,training.set[,-1]) #really fast!
+summary(regression.tree) #only used 2 variables! labfreq and y1_charges actually used in treebuilding. Why?
+cv.regression.tree <- cv.tree(regression.tree) #took a couple minutes!
+proc.time() - ptm7
+#plot error rate as function of both size and k
+plot(cv.regression.tree$size,cv.regression.tree$dev, type="b",xlab="Tree Size",ylab="Deviance",main="Cross-validation of Regression Tree Shows Tree Size Associated with Lowest Deviance") #deviance is higher with smaller trees; we do not prune.
+plot(cv.regression.tree$k,cv.regression.tree$dev, type="b") 
+plot(regression.tree,main="Regression Tree Includes 2 Predictor Variables") #unpruned tree tree
+text(regression.tree)
+tree.pred <- predict(regression.tree,newdata=validation.set[,-1])
+tree.mse <- mean((tree.pred-y_val)^2) #MSE
+tree.rmse <- sqrt(mean((tree.pred-y_val)^2)) # RMSE says we're on average $37,535 off from our predictions (I think)
+tree.mae <- mean(abs(tree.pred-y_val))
+plot(tree.pred,y_val,main="Regression Tree, Predicted Values v. True Values")
+abline(0,1)
+
+save.image(file="/project/msca/capstone3/Grace_final_models2.RData")
+
+# build a random forest based on the variables that were not shrunk to 0 by lasso
+library(randomForest)
+ptm <- proc.time()
+set.seed(10)
+ranforALL <- randomForest(training.set[-c(1,10)],y=training.set$y2_charges,ntree=50,importance=T,do.trace=T)
+proc.time() - ptm # user=37716.020, system=3.916,elapsed=37717.933 (10.4 hour runtime for 50 trees)
+#save(ranforALL,file="/project/msca/capstone3/ranforALL.RData")
+ranforALL.pred <- predict(ranforALL,newdata=validation.set[,-1])
+ranforALL.mse <- mean((ranforALL.pred-validation.set$y2_charges)^2)
+ranforALL.rmse <- sqrt(mean((ranforALL.pred-validation.set$y2_charges)^2))
+ranforALL.mae <- mean(abs(ranforALL.pred-validation.set$y2_charges))
+#plot(importance(ranforALL))
+ranfor.imp <- as.data.frame(importance(ranforALL))
+names(ranfor.imp)<- c("PercentIncMSE","IncNodePurity")
+head(ranfor.imp[order(ranfor.imp$PercentIncMSE,decreasing=T),],50)
+# library(randomForest)
+# ptm <- proc.time()
+# set.seed(10)
+# ranforALL <- randomForest(training.set[-c(1,10)],y=training.set$y2_charges,ntree=50,importance=T,do.trace=T)
+# proc.time() - ptm 
+# ranforALL.pred <- predict(ranforALL,newdata=validation.set[,-1])
+# ranforALL.mse <- mean((ranforALL.pred-validation.set$y2_charges)^2)
+# ranforALL.rmse <- sqrt(mean((ranforALL.pred-validation.set$y2_charges)^2))
+# ranforALL.mae <- mean(abs(ranforALL.pred-validation.set$y2_charges))
+#plot(importance(ranforALL))
+save.image(file="/project/msca/capstone3/Grace_final_models3.RData")
+
+save.image(file="/project/msca/capstone3/Grace_final_models2.RData")
 
 
+#Random Forest
+library(randomForest)
+ptm11 <- proc.time()
+set.seed(10)
+# Models run total
+mse <- c(ridge=ridge.mse,lasso=lasso.mse,tree=tree.mse,ranfor=ranfor.lasso.mse,ranfor2=ranfor.lasso.mse2)
+mae <- c(ridge=ridge.mae,lasso=lasso.mae,tree=tree.mae,ranfor=ranfor.lasso.mae,ranfor2=ranfor.lasso.mae2)
+rmse <- c(ridge=ridge.rmse,lasso=lasso.rmse,tree=tree.rmse,ranfor=ranfor.lasso.rmse,ranfor2=ranfor.lasso.rmse2)
 
 
-
-# kinda different::
-# lm.pred <- predict(ridge.mod,s=0,exact=T,x_test) #setting s=0 & exact=T makes it linear model
-# lm.mse <- mean((lm.pred-y_test)^2)
-# lm.rmse <- sqrt(mean((lm.pred-y_test)^2))
-# lm.mae <- mean(abs(lm.pred-y.test))
-# 
-# lm(log(y2_charges)
-   
-#    ptm7 <- proc.time()
-#    lm.pred <- predict(ridge.mod,s=0,exact=T,x_test) #setting s=0 & exact=T makes it linear model
-#    proc.time() - ptm7 
-#    lm.mse <- mean((lm.pred-y_test)^2)
-#    lm.rmse <- sqrt(mean((lm.pred-y_test)^2))
-#    lm.mae <- mean(abs(lm.pred-y.test))
-#    
-#    save.image(file="/project/msca/capstone3/Grace_final_models2.RData")
-#    
-   # investigate the lasso coefficients that were NOT turned to 0.
-   lasso_coeffs <- predict(lasso.mod,s=cv.lasso$lambda.min,type="coefficients")
-   length(which(lasso_coeffs!=0)) #26
-   #dimnames(lasso_coeffs)[[1]][which(lasso_coeffs!=0)]
-   # investigate the ridge coefficients that were NOT turned to 0.
-   ridge_coeffs <- predict(ridge.mod,s=cv.ridge$lambda.min,type="coefficients")
-   #dimnames(ridge_coeffs)[[1]][which(ridge_coeffs!=0)] #only 2 predictors included!
-   length(dimnames(ridge_coeffs)[[1]][which(ridge_coeffs!=0)])
-   length(dimnames(ridge_coeffs)[[1]])
-   
-   # regression tree
-   ptm7 <- proc.time()
-   library(tree)
-   regression.tree <- tree(y2_charges~.,training.set[,-1]) #really fast!
-   summary(regression.tree) #only used 2 variables! labfreq and y1_charges actually used in treebuilding. Why?
-   cv.regression.tree <- cv.tree(regression.tree) #took a couple minutes!
-   proc.time() - ptm7
-   #plot error rate as function of both size and k
-   plot(cv.regression.tree$size,cv.regression.tree$dev, type="b",xlab="Tree Size",ylab="Deviance",main="Cross-validation of Regression Tree Shows Tree Size Associated with Lowest Deviance") #deviance is higher with smaller trees; we do not prune.
-   plot(cv.regression.tree$k,cv.regression.tree$dev, type="b") 
-   plot(regression.tree,main="Regression Tree Includes 2 Predictor Variables") #unpruned tree tree
-   text(regression.tree)
-   tree.pred <- predict(regression.tree,newdata=validation.set[,-1])
-   tree.mse <- mean((tree.pred-y_val)^2) #MSE
-   tree.rmse <- sqrt(mean((tree.pred-y_val)^2)) # RMSE says we're on average $37,535 off from our predictions (I think)
-   tree.mae <- mean(abs(tree.pred-y_val))
-   plot(tree.pred,y_val,main="Regression Tree, Predicted Values v. True Values")
-   abline(0,1)
-   r2.tree <- summary(lm(tree.pred~y_val))$r.squared
-   r2.tree
-   
-   
-   save.image(file="/project/msca/capstone3/Grace_final_models2.RData")
-   
-   # build a random forest based on the variables that were not shrunk to 0 by lasso
-   library(randomForest)
-   
-   # the folowing line crashed R in RCC
-   # bag.ranfor <- randomForest(y2_charges~labfreq+y1_charges+X147.9+X153+X153.8+X154.1+X156+X159.9+X174.1+X185+X189+X195.5+X198.81+X200.48+X287.3+X340+X351.9+X526.4+X555.9+X610.4+X694.6+X753.21+X782.9+V58.0+V66.2,validation.set[,-1],mtry=13,importance=T)
-   # so instead i'll try it with the default mtry value
-   set.seed(10)
-   ptm8 <- proc.time()
-   ranfor.lasso <- randomForest(y2_charges~labfreq+y1_charges+X147.9+X153+X153.8+X154.1+X156+X159.9+X174.1+X185+X189+X195.5+X198.81+X200.48+X287.3+X340+X351.9+X526.4+X555.9+X610.4+X694.6+X753.21+X782.9+V58.0+V66.2,training.set[-1],importance=T,do.trace=T) #4-minute runtime when mtry=8
-   proc.time() - ptm8
-   ranfor.lasso.pred <- predict(ranfor.lasso,newdata=validation.set[,-1])
-   ranfor.lasso.mse <- mean((ranfor.lasso.pred-y_val)^2)
-   ranfor.lasso.rmse <- sqrt(mean((ranfor.lasso.pred-y_val)^2))
-   ranfor.lasso.mae <- mean(abs(ranfor.lasso.pred-y_val)) #10582.11
-   plot(importance(ranfor.lasso))
-   plot(ranfor.lasso.pred ,y_val,main="Random Forest, Predicted Values v. True Values")
-   abline(0,1)
-   r2.ranfor <- summary(lm(ranfor.lasso.pred~y_val))$r.squared
-   r2.ranfor
-   
-   
-   
-   save.image(file="/project/msca/capstone3/Grace_final_models2.RData")
-   
-   # Random Forest - cross-validated
-   lasso.coef <- c("labfreq","y1_charges","X147.9","X153","X153.8","X154.1","X156","X159.9","X174.1","X185","X189","X195.5","X198.81","X200.48","X287.3","X340","X351.9","X526.4","X555.9","X610.4","X694.6","X753.21","X782.9","V58.0","V66.2")
-   ranfor_input <-training.set[,which(names(validation.set) %in% lasso.coef)]
-   ranfor_y <- training.set$y2_charges
-   
-   ptm9 <- proc.time()
-   set.seed(10)
-   ranfor.cv <- rfcv(ranfor_input,ranfor_y,do.trace=T) #30-min runtime
-   proc.time() - ptm9
-   #save(ranfor.cv,file="/project/msca/capstone3/ranfor.cv.RData")
-   ranfor.cv.pred <- predict(ranfor.cv,newdata=validation.set[,-1])
-   ranfor.cv.mse <- mean((ranfor.cv.pred-y_val)^2)
-   ranfor.cv.rmse <- sqrt(mean((ranfor.cv.pred-y_val)^2))
-   ranfor.cv.mae <- mean(abs(ranfor.cv.pred-y_val)) #10582.11
-   #importance(ranfor.cv)
-   plot(ranfor.cv.pred ,y_val,main="Cross-Validated Random Forest, Predicted Values v. True Values")
-   abline(0,1)
-   r2.ranfor.cv <- summary(lm(ranfor.cv.pred~y_val))$r.squared
-   set.seed(647)
-   with(ranfor.cv, plot(n.var, error.cv, log="x", type="o", lwd=2,ylab="Mean Squared Error (MSE)", xlab="Number of Variables Considered at Each Node",main="Cross-validation of Random Forest to Select Number of Variables Considered at Each Node Split"))
-   ranfor.cv$n.var[which(ranfor.cv$error.cv==min(ranfor.cv$error.cv))] #Default is 25!
-   
-   save.image(file="/project/msca/capstone3/Grace_final_models2.RData")
-   
-   # The following random forest model considers all lasso-returned variables at every split
-   library(randomForest)
-   ptm11 <- proc.time()
-   set.seed(10)
-   ranfor.lasso2 <- randomForest(y2_charges~labfreq+y1_charges+X147.9+X153+X153.8+X154.1+X156+X159.9+X174.1+X185+X189+X195.5+X198.81+X200.48+X287.3+X340+X351.9+X526.4+X555.9+X610.4+X694.6+X753.21+X782.9+V58.0+V66.2,training.set[-1],mtry=25,importance=T,do.trace=T) #7.7-min runtime when mtry=26
-   proc.time() - ptm11
-   #save(ranfor.lasso2,file="/project/msca/capstone3/ranfor.lasso2.RData")
-   ranfor.lasso.pred2 <- predict(ranfor.lasso2,newdata=validation.set[,-1])
-   ranfor.lasso.mse2 <- mean((ranfor.lasso.pred2-validation.set$y2_charges)^2)
-   ranfor.lasso.rmse2 <- sqrt(mean((ranfor.lasso.pred2-validation.set$y2_charges)^2))
-   ranfor.lasso.mae2 <- mean(abs(ranfor.lasso.pred2-validation.set$y2_charges)) # 15746.05
-   #importance(ranfor.lasso2)
-   plot(ranfor.lasso.pred2 ,validation.set$y2_charges,main="Random Forest with All Predictors Considered at Each Node, Predicted Values v. True Values")
-   abline(0,1)
-   r2.ranfor2 <- summary(lm(ranfor.lasso.pred2~y_val))$r.squared
-   r2.ranfor2
-   
-   
-   save.image(file="/project/msca/capstone3/Grace_final_models2.RData")
-   
-#    random forest3
-#    ptm <- proc.time()
-#    bag.ranfor2 <- randomForest(y2_charges~.,validation.set[-1],mtry=25,importance=T,do.trace=T) #7.7-min runtime when mtry=26
-#    proc.time() - ptm #user   system  elapsed / 1685.655    0.540 1683.867
-#    ranfor.pred2 <- predict(bag.ranfor2,newdata=validation.set[,-1])
-#    ranfor.lasso.mse2 <- mean((ranfor.pred2-y_val)^2)
-#    ranfor.lasso.rmse2 <- sqrt(mean((ranfor.pred2-y_val)^2))
-#    ranfor.lasso.mae2 <- mean(abs(ranfor.pred2-y_val)) # only $8,101!
-#    plot(importance(bag.ranfor2))
-#    plot(ranfor.pred2 ,y_val,main="Random Forest with All Predictors Considered at Each Node, Predicted Values v. True Values")
-#    abline(0,1)
-#    r2.ranfor2 <- summary(lm(ranfor.pred2~y_val))$r.squared
-#    r2.ranfor2   
-#    
-#    # Prediction on final Test set
-   #ranfor.test.pred <- predict(bag.ranfor2,newdata=testing.set[,-1])
-   # ranfor.test.mse <- mean((ranfor.test.pred-testing.set$y2_charges)^2)
-   # ranfor.test.rmse <- sqrt(mean((ranfor.test.pred-testing.set$y2_charges)^2))
-   # ranfor.test.mae <- mean(abs(ranfor.test.pred-testing.set$y2_charges)) # only $8,101!
-   # importance(bag.ranfor2)
-   # plot(ranfor.test.pred ,testing.set$y2_charges,main="Random Forest with All Predictors Considered at Each Node, Predicted Values v. True Values")
-   # abline(0,1)
-   # r2.ranfor.test <- summary(lm(ranfor.test.pred~testing.set$y2_charges))$r.squared
-   # r2.ranfor.test
-   
-   
-   
-   
-   # Models run total
-   r2 <- c(ridge=r2.ridge,lasso=r2.lasso,tree=r2.tree,ranfor=r2.ranfor,ranfor2=r2.ranfor2)
-   r2
-   mse <- c(ridge=ridge.mse,lasso=lasso.mse,tree=tree.mse,ranfor=ranfor.lasso.mse,ranfor2=ranfor.lasso.mse2)
-   mae <- c(ridge=ridge.mae,lasso=lasso.mae,tree=tree.mae,ranfor=ranfor.lasso.mae,ranfor2=ranfor.lasso.mae2)
-   rmse <- c(ridge=ridge.rmse,lasso=lasso.rmse,tree=tree.rmse,ranfor=ranfor.lasso.rmse,ranfor2=ranfor.lasso.rmse2)
-   
-   
-   #plot Predicted Values v. True Values
-   par(mfrow=c(2,3))
-   
-
-
+#plot Predicted Values v. True Values
+par(mfrow=c(2,3))
 plot(ridge.pred,y_val,main="Ridge",xlab="True Charge Value ($)",ylab="Predicted Charges Value ($)")
-   #text(100000,1200000,labels=paste("R^2=",round(r2.ridge,3)))
-   abline(0,1,col="red",cex=2)
-   plot(lasso.pred,y_val,main="Lasso",xlab="True Charge Value ($)",ylab="Predicted Charges Value ($)")
-   #text(200000,1200000,labels=paste("R^2=",round(r2.lasso,3)))
-   abline(0,1,col="red",cex=2)
-   plot(tree.pred,y_val,main="Regression Tree",xlab="True Charge Value ($)",ylab="Predicted Charges Value ($)")
-   #text(300000,1200000,labels=paste("R^2=",round(r2.tree,3)))
-   abline(0,1,col="red",cex=2)
-   plot(ranforALL.pred ,y_val,xlab="True Charge Value ($)",ylab="Predicted Charges Value ($)")
-   #text(300000,1200000,labels=paste("R^2=",round(r2.ranfor,3)))
-   abline(0,1,col="red",cex=2)
-   plot(ranfor.pred2 ,y_val,main="Random Forest",xlab="True Charge Value ($)",ylab="Predicted Charges Value ($)")
-   #text(300000,1200000,labels=paste("R^2=",round(r2.ranfor2,3)))
-   abline(0,1,col="red",cex=2)
-   par(mfrow=c(1,1))
-   
+#text(100000,1200000,labels=paste("R^2=",round(r2.ridge,3)))
+abline(0,1,col="red",cex=2)
+plot(lasso.pred,y_val,main="Lasso",xlab="True Charge Value ($)",ylab="Predicted Charges Value ($)")
+#text(200000,1200000,labels=paste("R^2=",round(r2.lasso,3)))
+abline(0,1,col="red",cex=2)
+plot(tree.pred,y_val,main="Regression Tree",xlab="True Charge Value ($)",ylab="Predicted Charges Value ($)")
+#text(300000,1200000,labels=paste("R^2=",round(r2.tree,3)))
+abline(0,1,col="red",cex=2)
+plot(ranforALL.pred ,y_val,xlab="True Charge Value ($)",ylab="Predicted Charges Value ($)")
+#text(300000,1200000,labels=paste("R^2=",round(r2.ranfor,3)))
+abline(0,1,col="red",cex=2)
+plot(ranfor.pred2 ,y_val,main="Random Forest",xlab="True Charge Value ($)",ylab="Predicted Charges Value ($)")
+#text(300000,1200000,labels=paste("R^2=",round(r2.ranfor2,3)))
+abline(0,1,col="red",cex=2)
+par(mfrow=c(1,1))
+
 # predict on final testing.set
 ranfor.test.pred <- predict(ranforALL,newdata=testing.set[,-1])
 ranfor.test.mse <- mean((ranfor.test.pred-testing.set$y2_charges)^2)
 ranfor.test.rmse <- sqrt(mean((ranfor.test.pred-testing.set$y2_charges)^2))
 ranfor.test.mae <- mean(abs(ranfor.test.pred-testing.set$y2_charges))
 ranfor.test.mae2 <- mean((ranfor.test.pred-testing.set$y2_charges))
-# only $8,101!
-# importance(bag.ranfor2)
-# plot(ranfor.test.pred ,testing.set$y2_charges,main="Random Forest with All Predictors Considered at Each Node, Predicted Values v. True Values")
-# abline(0,1)
 
-   # Predict on test set based on final model
-   ranfor.lasso.test.pred <- predict(ranfor.lasso,newdata=testing.set[,-1])
-   ranfor.lasso.test.mse <- mean((ranfor.lasso.test.pred-testing.set$y2_charges)^2)
-   ranfor.lasso.test.rmse <- sqrt(mean((ranfor.lasso.test.pred-testing.set$y2_charges)^2))
-   ranfor.lasso.test.mae <- mean(abs(ranfor.lasso.test.pred-testing.set$y2_charges)) #10582.11
-   # Final error values
-   ranfor.lasso.test.mse
-   ranfor.lasso.test.rmse
-   ranfor.lasso.test.mae
-   
-   
-   # plot the difference in cost buckets
-   nrow(testing.set)/4 #1719.25
-   low <- testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[1:1720])]
-   med <- testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[1721:3439])]
-   high <- testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[3440:5158])]
-   vhi <- testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[5159:nrow(testing.set)])]
-   mae_low <- mean(abs(ranfor.lasso.test.pred[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[1:1720])]-testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[1:1720])]))
-   mae_med <- mean(abs(ranfor.lasso.test.pred[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[1721:3439])]-testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[1721:3439])]))
-   mae_hi <- mean(abs(ranfor.lasso.test.pred[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[3440:5158])]-testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[3440:5158])]))
-   mae_vhi <- mean(abs(ranfor.lasso.test.pred[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[5159:nrow(testing.set)])]-testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[5159:nrow(testing.set)])]))
-   ranFor_mae <- c(mae_low,mae_med,mae_hi,mae_vhi)
-   max(low) #1405
-   min(med) #1407
-   max(med) #4945
-   min(high) #4955
-   max(high) #14289
-   min(vhi) #14296
-   # plot MAE for different cost buckets
-   plot(ranFor_mae,type="l",col=1,ylim=c(0,35000),lty=1,xaxt="n",main="Mean Absolute Error of Predicted costs for Patients Across 4 Cost Buckets",xlab="Cost Bucket",ylab="Mean Absolute Error (MAE)")
-   axis(1,at=1:4,labels=c("True Cost < $1406","$1406 < True Cost =< $4950","$4950 <True Cost< $14,293","True Cost >$14,293"))
-   vals1 <- c(1.25,2,2.75,3.5)
-   text(x=vals1,y= c(2000+ranFor_mae[1:3],ranFor_mae[4]), labels=paste("$",as.character(round(ranFor_mae,digits=0))))
-   
-   
-   #text(x=vals,y= 1000+mae[c(4,7,3,2,1,5,6)], labels=as.character(round(mae[c(4,7,3,2,1,5,6)],digits=0)))
-   # plot MAE across models
-   mae <- c(ranfor=ranforALL.mae, lasso=lasso.mae,tree=tree.mae,ridge=ridge.mae,lm=18017.47,lm_log=18951.8)
-   models=c("Random Forest","Lasso","Tree","Ridge","Linear Regression","Log-transformed Linear")
-   barplot(mae[order(mae)],width=1,names.arg=models,ylim=c(0,21000),ylab="Mean Absolute Error (MAE), in Dollars",main="Mean Absolute Error of Predicted Cost Values from True Cost Values")
-   grid()
-   vals <- seq(0.5,8,1.25)
-   text(x=vals,y= 1000+mae, labels=paste("$",as.character(round(mae,digits=0))))
-   
-   # plot MSE across models
-   mse <- c(ranfor8=1376543417,lasso=1457240037,tree=1482669132,ranfor25=1507159647,ridge=1640072495,lm=1751369515,lm_log=158419270358)
-   models=c("Random Forest, 8 ","Lasso","Tree","Random Forest, 25","Ridge","Linear Regression","Log-transformed Linear")
-   barplot(mse[order(mse)],width=1,names.arg=models,ylim=c(0,1957240037),ylab="Mean Squared Error (MSE)",main="Mean Squared Error of Predicted Cost Values from True Cost Values")
-   grid()
-   vals <- seq(0.5,8,1.25)
-   text(x=vals,y= c(100000000+mse[1:6],100000000+mse[6]), labels=paste("$",as.character(round(mse,digits=0))))
-   
-  
-   ptm <- proc.time()
-   set.seed(10)
-   ranforALL <- randomForest(training.set[-c(1,10)],y=training.set$y2_charges,ntree=50,importance=T,do.trace=T)
-   proc.time() - ptm # user=37716.020, system=3.916,elapsed=37717.933 (10.4 hour runtime for 50 trees)
-   #save(ranforALL,file="/project/msca/capstone3/ranforALL.RData")
-   ranforALL.pred <- predict(ranforALL,newdata=validation.set[,-1])
-   ranforALL.mse <- mean((ranforALL.pred-validation.set$y2_charges)^2)
-   ranforALL.rmse <- sqrt(mean((ranforALL.pred-validation.set$y2_charges)^2))
-   ranforALL.mae <- mean(abs(ranforALL.pred-validation.set$y2_charges))
-   #plot(importance(ranforALL))
-  ranfor.imp <- as.data.frame(importance(ranforALL))
-  names(ranfor.imp)<- c("PercentIncMSE","IncNodePurity")
-  head(ranfor.imp[order(ranfor.imp$PercentIncMSE,decreasing=T),],50)
-library(randomForest)
-ptm <- proc.time()
-set.seed(10)
-ranforALL <- randomForest(training.set[-c(1,10)],y=training.set$y2_charges,ntree=50,importance=T,do.trace=T)
-proc.time() - ptm 
-ranforALL.pred <- predict(ranforALL,newdata=validation.set[,-1])
-ranforALL.mse <- mean((ranforALL.pred-validation.set$y2_charges)^2)
-ranforALL.rmse <- sqrt(mean((ranforALL.pred-validation.set$y2_charges)^2))
-ranforALL.mae <- mean(abs(ranforALL.pred-validation.set$y2_charges))
-#plot(importance(ranforALL))
-save.image(file="/project/msca/capstone3/Grace_final_models3.RData")
 
-   
-   proc.time() - ptm1
-   
-   save.image(file="/project/msca/capstone3/Grace_final_models2.RData")
-   load("/project/msca/capstone3/Grace_final_models2.RData")
+
+# plot the difference in cost buckets
+nrow(testing.set)/4 #1719.25
+low <- testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[1:1720])]
+med <- testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[1721:3439])]
+high <- testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[3440:5158])]
+vhi <- testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[5159:nrow(testing.set)])]
+mae_low <- mean(abs(ranfor.test.pred[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[1:1720])]-testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[1:1720])]))
+mae_med <- mean(abs(ranfor.test.pred[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[1721:3439])]-testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[1721:3439])]))
+mae_hi <- mean(abs(ranfor.test.pred[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[3440:5158])]-testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[3440:5158])]))
+mae_vhi <- mean(abs(ranfor.test.pred[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[5159:nrow(testing.set)])]-testing.set$y2_charges[which(testing.set$y2_charges %in% sort(testing.set$y2_charges)[5159:nrow(testing.set)])]))
+ranFor_mae <- c(mae_low,mae_med,mae_hi,mae_vhi)
+max(low) #1405
+min(med) #1407
+max(med) #4945
+min(high) #4955
+max(high) #14289
+min(vhi) #14296
+
+# plot MAE for different cost buckets
+plot(ranFor_mae,type="l",col=1,ylim=c(0,35000),lty=1,xaxt="n",main="Mean Absolute Error of Predicted costs for Patients Across 4 Cost Buckets",xlab="Cost Bucket",ylab="Mean Absolute Error (MAE)")
+axis(1,at=1:4,labels=c("True Cost < $1406","$1406 < True Cost =< $4950","$4950 <True Cost< $14,293","True Cost >$14,293"))
+vals1 <- c(1.25,2,2.75,3.5)
+text(x=vals1,y= c(2000+ranFor_mae[1:3],ranFor_mae[4]), labels=paste("$",as.character(round(ranFor_mae,digits=0))))
+
+
+
+#text(x=vals,y= 1000+mae[c(4,7,3,2,1,5,6)], labels=as.character(round(mae[c(4,7,3,2,1,5,6)],digits=0)))
+# plot MAE across models
+mae <- c(ranfor=ranforALL.mae, lasso=lasso.mae,tree=tree.mae,ridge=ridge.mae,lm=18017.47,lm_log=18951.8)
+models=c("Random Forest","Lasso","Tree","Ridge","Linear Regression","Log-transformed Linear")
+barplot(mae[order(mae)],width=1,names.arg=models,ylim=c(0,21000),ylab="Mean Absolute Error (MAE), in Dollars",main="Mean Absolute Error of Predicted Cost Values from True Cost Values")
+grid()
+vals <- seq(0.5,8,1.25)
+text(x=vals,y= 1000+mae, labels=paste("$",as.character(round(mae,digits=0))))
+
+# plot MSE across models
+mse <- c(ranfor8=1376543417,lasso=1457240037,tree=1482669132,ranfor25=1507159647,ridge=1640072495,lm=1751369515,lm_log=158419270358)
+models=c("Random Forest, 8 ","Lasso","Tree","Random Forest, 25","Ridge","Linear Regression","Log-transformed Linear")
+barplot(mse[order(mse)],width=1,names.arg=models,ylim=c(0,1957240037),ylab="Mean Squared Error (MSE)",main="Mean Squared Error of Predicted Cost Values from True Cost Values")
+grid()
+vals <- seq(0.5,8,1.25)
+text(x=vals,y= c(100000000+mse[1:6],100000000+mse[6]), labels=paste("$",as.character(round(mse,digits=0))))
+
+proc.time() - ptm1
+
+save.image(file="/project/msca/capstone3/Grace_final_models2.RData")
+load("/project/msca/capstone3/Grace_final_models2.RData")
