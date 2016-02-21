@@ -1,0 +1,276 @@
+#DataCleaning_Jan2016
+
+# Revises Step 3 of FinalDataCleaning
+
+# here, please note:
+# pef = encounter-level table to be summarized to patient-level later
+# admissions = patient-level table of admission information
+
+library(plyr)
+load("/project/msca/capstone3/all_tables_appended.RData")
+
+# make a descriptive matrix based off of the encounter-level patEncFin matrix
+pef <- patEncFin #dim(pef)= 462710      8
+pef$admission <-as.POSIXct(as.character(pef$start_date_offset), format="%Y-%m-%d %H:%M:%S") #add in admission column
+pef$discharge <- as.POSIXct(as.character(pef$end_date_offset), format="%Y-%m-%d %H:%M:%S") #add in discharge column
+pef <- merge(charges_all[,1:3], pef, by=c("patient_id","encounter_id"),all.x=TRUE) #add $ info. same #rows as charges_all.
+pef$Charges <- as.numeric(pef$Charges)
+pef <- pef[-which(is.na(pef$Charges)),]
+
+# create a patient-level table on the side to determine cutoff date; merge back into pef later
+admissions <- ddply(pef, "patient_id",summarise, first_admission=min(admission),last_discharge=max(discharge),num_encounters=length(encounter_id))#takes a minute
+admissions <- subset(admissions,num_encounters>1)
+admissions$date_range <- difftime(admissions$last_discharge,admissions$first_admission,units="days")
+admissions$half_date_range <- admissions$date_range/2 
+admissions$cutoff_date <- admissions$last_discharge - admissions$half_date_range
+
+# merge admissions info back into pef (including only patients with >1 encounter)
+pef<- merge(pef,admissions[,c(which(names(admissions)=="patient_id"),which(names(admissions)=="cutoff_date"))],by="patient_id",all.y=T)
+length(unique(pef$patient_id)) #this table now only includes patients with >1 encounter
+
+# add more information to pef based on admission info
+length(which(pef$discharge==pef$cutoff_date)) #547; need to remove rows with discharge==cutoff_date
+pef <- subset(pef, discharge!=cutoff_date)
+pef$above_cutoff <- 0
+pef$above_cutoff[which(pef$discharge>pef$cutoff_date)] <- 1
+
+# Step 4
+
+# split the encounter-level table (pef) into year 1 and year 2
+pef_y1 <- subset(pef,above_cutoff==0)
+pef_y2 <- subset(pef,above_cutoff==1)
+
+# create year 1 summary variables
+# Calculate length of stay in days
+pef_y1$los <- as.numeric(difftime(pef_y1$discharge,pef_y1$admission,units="days"),units="days") 
+# this doesn't make much sense - we should only be including hospital stays, right?
+# later when we create a patient-level table (each row is 1 patient id), we will summarise this as sumlos=sum(los)
+
+# Calculate encounter number/hospitalizations
+pef_y1$encounter_id2 <- 1
+# later when we create a patient-level table (each row is 1 patient id), we will summarise this as encountfreq=sum(encounter_id2)
+
+# Calculate number of hospitalizations
+pef_y1$inpatient <- 0
+pef_y1$inpatient[which(pef_y1$enc_eio=="E, I,")] <- 1
+pef_y1$inpatient[which(pef_y1$enc_eio=="I,")] <- 1
+pef_y1$inpatient[which(pef_y1$enc_eio=="I, O,")] <- 1
+# later when we create a patient-level table (each row is 1 patient id), we will summarise this as hospitalizations=sum(inpatient)
+
+Mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+#Create a patient-level table which summarizes our calculated variables
+patient_matrix <- ddply(pef_y1, "patient_id",summarise, 
+                        sumlos=sum(los),
+                        encountfreq=sum(encounter_id2),
+                        hospitalizations=sum(inpatient),
+                        age=max(age_at_enc),
+                        num_ER_visits =sum(enc_eio=="E,")+sum(enc_eio=="E, I,")+sum(enc_eio=="E, O,"),
+                        mode_discharge_dispo = Mode(discharge_dispo),
+                        y1_charges=sum(Charges))
+
+# calculate and merge in year 2 charge data
+y2_charges <- ddply(pef_y2, "patient_id",summarise, y2_charges=sum(Charges))
+patient_matrix <- merge(patient_matrix,y2_charges)
+
+# add in patient demographic information
+patient_matrix <- merge(patient_matrix,patfin,all.x=T)
+save(patient_matrix,file="/project/msca/capstone3/patient_matrix_Jan2016.RData")
+
+# Check this matrix for NAs
+
+#check for nas; if found, remove them the places where NAs are found in both year2 & year1 charges - we shouldn't be finding NAs in BOTH
+
+nacols <- function(df) {
+  colnames(df)[unlist(lapply(df, function(x) any(is.na(x))))]
+}
+nacols(patient_matrix) #no NAs
+
+# add in ICD-9 info
+### STEP 5:  add in the ICD-9 variables ###
+
+# Step 5a: load the patient-level matrix from Step 4, and the other necessary tables.
+load("/project/msca/capstone3/all_tables_appended.RData")
+load("/project/msca/capstone3/patient_matrix_Jan2016.RData") #loads as patient matrix
+
+# Step 5a, cont'd: explore the data sets
+length(levels(as.factor(chargesPOA$Patient_ID))) # 7655
+names(icd9Dx)
+dim(icd9Dx) #884803      6
+length(levels(as.factor(icd9Dx$patient_id))) #35266 patients are represented in icd9Dx
+names(GrahamOut)
+dim(GrahamOut)
+length(levels(as.factor(GrahamOut$patient_id))) #45231 patients are represented in GrahamOut
+# Julie says that GrahamOut "Diagnosis Principal" is same as chargesPOA diagnosis with sequence value = 1.
+
+# Step 5b: create table that includes inpatients' AND outpatients' primary ICD-9 codes for all encounters
+# That is, create table that inncludes patients' primary icd9 codes from ChargesPOA AND GrahamOut (inpatient AND outpatient)
+# Julie says that GrahamOut "Diagnosis Principal" is same as chargesPOA diagnosis with sequence value = 1.
+# Then clean and explore this table.
+diag <- GrahamOut[,1:3]
+names(chargesPOA)
+head(chargesPOA$ICD.9.CM.Diagnosis...All)
+diag2 <- chargesPOA[which(chargesPOA$ICD.9.CM.Diagnosis...Sequence==1),1:3]
+dim(diag) #[1] 371072      3
+dim(diag2) #[1] 11628     3
+diag2 <- diag2[,c(2,1,3)]
+names(diag2) <- names(diag)
+diag <- rbind(diag,diag2)# warning, but I checked and it's ok
+length(which(is.na(diag$patient_id)))#11623
+nrow(diag)#382,700
+# remove duplicate rows
+diag <- unique(diag)
+head(diag)
+nrow(unique(diag))#372777 
+nrow(patient_matrix) #48105
+length(unique(diag$patient_id))#45231
+# the number of unique patients for which we have diagnosis is 45231
+# the number of unique patients in our existing patient matrix is 48105
+
+sum(unique(diag$patient_id) %in% patient_matrix$patient_id) #34823
+# so we have 34823 patients with both charges data (and demog. data) AND diagnosis data
+# so there's a trade-off between (a) having more patients and (b) having patients with diagnosis data.
+# Acknowledging this tradeoff, we choose to incorporate patients with diagnosis data
+#class(diag$ICD_9_CM_Diagnosis_Principal)#factor
+length(levels(diag$ICD_9_CM_Diagnosis_Principal)) #5031 diagnoses represented in our data set
+
+# Step 5c: remove all diagnoses encounters that did not happen in year 1
+# load the file that contains the year1/year2 cutoff information
+load("/project/msca/capstone3/patEncFin_cutoff.RData")
+#merge in a cutoff_date column to the diagnosis table
+diag <- merge(pef[,c(1:2,which(names(pef)=="above_cutoff"))],diag,all.y=T)
+dim(diag)#[1] 372377      4
+#for how many patient encounters do we have no date data?
+names(diag)
+length(which(is.na(diag$above_cutoff)))#1305
+sum(is.na(diag$above_cutoff))#1305
+#diag <- diag[which(!is.na(diag$cutoff_date)),] # warning
+sum(is.na(diag$above_cutoff))
+# remove all encounters above the cutoff date
+diag <- subset(diag,above_cutoff==0)
+dim(diag)#[1] 182664      4
+length(levels(diag$ICD_9_CM_Diagnosis_Principal))#5031
+
+# Step 5d: summarize by patient the number of times the person has had a particular ICD9 as their primary diagnosis in year1
+# Step 5d(i): test the dcast function on a test matrix of only 2 patients to make sure it does what we want, and does it correctly.
+# I'll try with a test_matrix that has single patient's encounter and diagnosis information
+test_matrix <- diag[which(diag$patient_id==1000006),]
+test_matrix2 <- diag[which(diag$patient_id==1000009),]
+test_matrix <- rbind(test_matrix,test_matrix2)
+test_matrix$ICD_9_CM_Diagnosis_Principal <- droplevels(test_matrix$ICD_9_CM_Diagnosis_Principal)
+length(levels(test_matrix$ICD_9_CM_Diagnosis_Principal)) #5
+library(reshape2)
+dcast(test_matrix,formula=patient_id~ICD_9_CM_Diagnosis_Principal) # the warning is OK - ignore it.
+# that worked!
+# now we'll do it on the whole data set.
+
+# Step 5d(ii): cast all icd-9s in our data set to have 1 column each.
+diag <- diag[,c(1:2,4)]
+diag2 <- dcast(diag,formula=patient_id~ICD_9_CM_Diagnosis_Principal)
+dim(diag2)#[1] 44496  4304
+head(diag2[,1:5]) # this is what we want
+sum(diag2[,2]) # these are the types of values we expect
+save(diag2, file="/project/msca/capstone3/diag2_Jan2016.RData")
+
+# Step 5e: merge diag2 to patient-level matrix by overlapping patient_id
+patient_matrix2 <- merge(patient_matrix,diag2)
+save(patient_matrix2,file="/project/msca/capstone3/patient_matrix2_Jan2016.RData")
+
+nacols(patient_matrix2) #no NAs
+
+###############
+#Step 6: Add variables from Meds and Labs tables
+# Step 6:
+library(plyr)
+load("/project/msca/capstone3/medsIn2.RData")
+load("/project/msca/capstone3/patient_matrix2.RData")
+load("/project/msca/capstone3/all_tables_appended.RData")
+
+# med count (# of DIFFERENT types of medications a person takes)
+medsOut$order_med_time_off<-NULL
+medsOut<-unique(medsOut[,1:3]) 
+medsIn2$mar_action<-NULL
+medsIn2$take_med_time_off<-NULL
+medsIn2<-unique(medsIn2[,1:3])
+joinmeds<-rbind(medsOut, medsIn2)
+joinmeds<-unique(joinmeds[,1:3])
+nrow(joinmeds)
+Medcount<-count(joinmeds[1:920582,],vars=c("encounter_id"))
+charges_all_join_Medcount <- merge(pef[c(1:2,which(names(pef)=="above_cutoff"))],Medcount,by="encounter_id")
+nacols(charges_all_join_Medcount) #no NAs
+charges_all_join_Medcount<-subset(charges_all_join_Medcount, above_cutoff=='0') #remove year 2 data, use only year 1
+nacols(charges_all_join_Medcount)
+medfreq<-ddply(charges_all_join_Medcount,.(patient_id),summarise,medfreq=sum(freq))
+head(medfreq)
+length(unique(medfreq$patient_id))
+
+patient_matrix<-merge(patient_matrix2,medfreq,by.x=c("patient_id"),by.y=c("patient_id"), all.x=TRUE)
+patient_matrix$medfreq[which(is.na(patient_matrix$medfreq))] <- 0# replace patient_matrix$medfreq NA values with 0
+col_idx<-grep("medfreq",names(patient_matrix))
+patient_matrix<-patient_matrix[,c(col_idx,(1:ncol(patient_matrix))[-col_idx])]
+
+#lab count
+labcount<-count(labs[1:10153073,],vars="encounter_id")
+charges_all_join_labcount <- merge(pef[c(1:2,which(names(pef)=="above_cutoff"))],labcount,by="encounter_id")
+head(charges_all_join_labcount)
+tail(charges_all_join_labcount)
+charges_all_join_labcount<-subset(charges_all_join_labcount, above_cutoff=='0') #remove year 2 data, use only year 1
+#charges_all_join_labcount$freq[is.na(charges_all_join_labcount$freq)] <- 0 #replace na's with 0
+labfreq<-ddply(charges_all_join_labcount,.(patient_id),summarise,labfreq=sum(freq))
+head(labfreq)
+length(unique(labfreq$patient_id))
+patient_matrix<-merge(patient_matrix,labfreq,by="patient_id", all.x=TRUE)
+nacols(patient_matrix)
+patient_matrix$labfreq[which(is.na(patient_matrix$labfreq))] <- 0# replace patient_matrix$labfreq NA values with 0
+col1_idx<-grep("labfreq",names(patient_matrix))
+patient_matrix<-patient_matrix[,c(col1_idx,(1:ncol(patient_matrix))[-col1_idx])]
+col2_idx<-grep("patient_id",names(patient_matrix))
+patient_matrix<-patient_matrix[,c(col2_idx,(1:ncol(patient_matrix))[-col2_idx])]
+save(patient_matrix, file="/project/msca/capstone3/patient_matrix2revise_Jan2016.RData")
+
+#Step 7:
+#Clean
+#1: Clean Data
+patient_matrix$race[patient_matrix$race == 'B'] <- 'Black/African-American'
+patient_matrix$race[patient_matrix$race == 'W'] <- 'White'
+patient_matrix$race[patient_matrix$race == 'U'] <- 'Unknown'
+patient_matrix$race[patient_matrix$race == 'Patient Declined'] <- 'Unknown'
+patient_matrix$race[patient_matrix$race == ''] <- 'Unknown'
+patient_matrix$race[patient_matrix$race == 'A'] <- 'Asian/Mideast Indian'
+patient_matrix$race[patient_matrix$race == 'N/A'] <- 'Unknown'
+patient_matrix$race[patient_matrix$race == 'N'] <- 'Unknown'
+patient_matrix$race[patient_matrix$race == 'NA'] <- 'Unknown'
+
+#clean marital status
+patient_matrix$marital_status[patient_matrix$marital_status == ''] <- 'Unknown'
+patient_matrix$marital_status[patient_matrix$marital_status == 'N/A'] <- 'Unknown'
+
+#clean ethnicity
+patient_matrix$ethnicity[patient_matrix$ethnicity == ''] <- 'Unknown'
+patient_matrix$ethnicity[patient_matrix$ethnicity == 'N/A'] <- 'Unknown'
+patient_matrix$ethnicity[patient_matrix$ethnicity == 'Patient Declined'] <- 'Unknown'
+
+levels(patient_matrix$marital_status)
+table(patient_matrix$marital_status)
+
+# clean mode_discharge_dispo (convert to factor)
+patient_matrix$mode_discharge_dispo <- as.factor(patient_matrix$mode_discharge_dispo)
+
+# clean labfreq (if necessary)
+# patient_matrix$labfreq[which(is.na(patient_matrix$labfreq))] <- 0
+
+# clean medfreq (if necessary)
+# patient_matrix$medfreq[which(is.na(patient_matrix$medfreq))] <- 0
+
+# remove dead patients & dod_off column
+patient_matrix <- patient_matrix[which(patient_matrix$dod_off==""),-which(colnames(patient_matrix)=="dod_off")]
+# patient_matrix <- patient_matrix[-which(patient_matrix$mode_discharge_dispo=="Expired"),] # don't use, removes all rows!
+
+save(patient_matrix, file="/project/msca/capstone3/patient_matrix_Jan2016.RData")
+
+# remove patients with only 1 encounter total # <- this no longer applies
+# patient_matrix <- patient_matrix[-which(patient_matrix$y2_charges==0 & patient_matrix$encountfreq==1),]
+# save(patient_matrix, file="/project/msca/capstone3/patient_matrix_final.RData")
